@@ -1,0 +1,15 @@
+# Core dependencies - Versions compatibles Python 3.11/3.12
+requests==2.31.0
+pandas==2.0.3  # Version plus stable
+numpy==1.24.3  # Compatible avec plus de versions Python
+
+# Visualization (optionnel pour commencer)
+# matplotlib==3.7.2
+# seaborn==0.12.2
+
+# Utilities
+python-dotenv==1.0.0
+
+# Pour plus tard (GCP)
+# google-cloud-bigquery==3.13.0
+# google-cloud-storage==2.13.0 

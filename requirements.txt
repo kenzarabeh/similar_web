@@ -1,0 +1,35 @@
+# Core dependencies
+requests==2.31.0
+pandas==2.1.4
+numpy==1.24.3
+
+# Visualization (for analysis)
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Google Cloud dependencies (for deployment phase)
+google-cloud-bigquery==3.13.0
+google-cloud-storage==2.13.0
+google-cloud-functions==1.15.0
+
+# Jupyter and analysis tools
+jupyter==1.0.0
+notebook==7.0.6
+ipykernel==6.27.1
+
+# Data processing
+openpyxl==3.1.2  # For Excel export
+pyarrow==14.0.1  # For Parquet support
+
+# Utilities
+python-dotenv==1.0.0  # For environment variables
+pytz==2023.3  # For timezone handling
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Linting and formatting
+black==23.12.0
+flake8==6.1.0
+isort==5.13.0 

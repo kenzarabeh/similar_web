@@ -1,0 +1,22 @@
+# Données sensibles
+.env
+*.key
+credentials.json
+
+# Données
+data/
+logs/
+*.json
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
