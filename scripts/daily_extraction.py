@@ -1,6 +1,5 @@
 """
-Script d'extraction quotidienne des données SimilarWeb
-Ce script sera adapté pour Cloud Functions dans la phase de déploiement GCP
+Script d'extraction corrigé pour SimilarWeb - Gère les dates correctement
 """
 import sys
 import os
@@ -22,239 +21,259 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_extraction_period(lookback_days: int = 30) -> Dict[str, str]:
+def convert_date_range_to_months(start_date_str: str, end_date_str: str) -> List[str]:
     """
-    Détermine la période d'extraction basée sur la date actuelle
+    Convertit une plage de dates en liste de mois
     
     Args:
-        lookback_days: Nombre de jours en arrière pour l'extraction
+        start_date_str: Date de début (YYYY-MM-DD)
+        end_date_str: Date de fin (YYYY-MM-DD)
         
     Returns:
-        Dictionnaire avec start_date et end_date au format YYYY-MM
+        Liste des mois au format YYYY-MM
     """
-    today = datetime.now()
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
     
-    # Pour une extraction mensuelle, on prend le mois précédent
-    if lookback_days >= 30:
-        # Dernier jour du mois précédent
-        last_day_prev_month = today.replace(day=1) - timedelta(days=1)
-        # Premier jour du mois précédent
-        first_day_prev_month = last_day_prev_month.replace(day=1)
+    months = []
+    current = start_date.replace(day=1)  # Premier jour du mois
+    
+    while current <= end_date:
+        months.append(current.strftime('%Y-%m'))
         
-        return {
-            'start_date': first_day_prev_month.strftime('%Y-%m'),
-            'end_date': last_day_prev_month.strftime('%Y-%m')
-        }
-    else:
-        # Pour une extraction plus courte, on utilise la période spécifiée
-        start_date = today - timedelta(days=lookback_days)
-        return {
-            'start_date': start_date.strftime('%Y-%m'),
-            'end_date': today.strftime('%Y-%m')
-        }
+        # Passer au mois suivant
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+    
+    return list(set(months))  # Éliminer les doublons
 
 
-def extract_and_save_segments(api_client: SimilarWebAPI, period: Dict[str, str], 
-                            limit: int = None, user_only: bool = True) -> Dict:
+def extract_segments_for_period(api_client: SimilarWebAPI, start_date_str: str, 
+                               end_date_str: str, granularity: str = 'monthly', 
+                               limit: int = None) -> List[Dict]:
     """
-    Extrait et sauvegarde les données des segments
+    Extrait les segments pour une période donnée
     
     Args:
-        api_client: Instance du client API
-        period: Dictionnaire avec start_date et end_date
-        limit: Nombre maximum de segments à traiter
-        user_only: Si True, récupère uniquement les segments créés par l'utilisateur
+        api_client: Client API
+        start_date_str: Date de début (YYYY-MM-DD)
+        end_date_str: Date de fin (YYYY-MM-DD)
+        granularity: 'monthly' ou 'daily'
+        limit: Limite du nombre de segments
         
     Returns:
-        Statistiques de l'extraction
+        Liste des données extraites
     """
     logger.info("=== EXTRACTION DES SEGMENTS ===")
     
-    # Extraction des données
-    segments_data = api_client.extract_all_segments(
-        start_date=period['start_date'],
-        end_date=period['end_date'],
-        limit=limit,
-        user_only=user_only
-    )
+    # Convertir les dates en mois
+    months = convert_date_range_to_months(start_date_str, end_date_str)
+    logger.info(f"📅 Mois à extraire: {months}")
+    
+    all_results = []
+    
+    for month in months:
+        logger.info(f"📊 Extraction pour {month}...")
+        
+        # Utiliser le format correct pour l'API
+        segments_data = api_client.extract_all_segments(
+            start_date=month,  # Format YYYY-MM
+            end_date=month,    # Format YYYY-MM
+            limit=limit,
+            user_only=True
+        )
+        
+        # Modifier la granularité si nécessaire
+        if granularity == 'daily':
+            # Pour chaque segment, refaire l'appel avec granularité quotidienne
+            for segment in segments_data:
+                if not segment.get('error'):
+                    try:
+                        daily_data = api_client.get_segment_data(
+                            segment_id=segment['segment_id'],
+                            start_date=month,
+                            end_date=month,
+                            granularity='daily'
+                        )
+                        if daily_data:
+                            segment['data'] = daily_data
+                    except Exception as e:
+                        logger.warning(f"Granularité quotidienne non disponible pour {segment['segment_name']}: {e}")
+        
+        all_results.extend(segments_data)
     
     # Statistiques
     stats = {
-        'total': len(segments_data),
-        'success': len([s for s in segments_data if not s.get('error')]),
-        'errors': len([s for s in segments_data if s.get('error')])
+        'total': len(all_results),
+        'success': len([s for s in all_results if not s.get('error')]),
+        'errors': len([s for s in all_results if s.get('error')])
     }
-    
-    # Sauvegarde avec timestamp
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"segments_extraction_{timestamp}.json"
-    save_results_to_json(segments_data, filename)
     
     logger.info(f"📊 Segments: {stats['success']}/{stats['total']} extraits avec succès")
     
-    return stats
+    # Sauvegarde
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"segments_extraction_{timestamp}.json"
+    save_results_to_json(all_results, filename)
+    
+    return all_results
 
 
-def extract_and_save_websites(api_client: SimilarWebAPI, period: Dict[str, str], 
-                            domains: List[str] = None) -> Dict:
+def extract_websites_for_period(api_client: SimilarWebAPI, start_date_str: str, 
+                                end_date_str: str, granularity: str = 'monthly',
+                                domains: List[str] = None) -> List[Dict]:
     """
-    Extrait et sauvegarde les données des sites web
+    Extrait les websites pour une période donnée
     
     Args:
-        api_client: Instance du client API
-        period: Dictionnaire avec start_date et end_date
-        domains: Liste des domaines (utilise la config dynamique par défaut)
+        api_client: Client API
+        start_date_str: Date de début (YYYY-MM-DD)
+        end_date_str: Date de fin (YYYY-MM-DD)
+        granularity: 'monthly' ou 'daily'
+        domains: Liste des domaines
         
     Returns:
-        Statistiques de l'extraction
+        Liste des données extraites
     """
     logger.info("=== EXTRACTION DES SITES WEB ===")
     
+    # Charger les domaines
     if domains is None:
-        # Charger la liste dynamique des sites web
         try:
             from scripts.manage_websites import load_websites
             domains = load_websites()
-            logger.info(f"📋 {len(domains)} sites web chargés depuis la configuration")
+            logger.info(f"📋 {len(domains)} sites web chargés")
         except:
-            # Fallback sur TARGET_DOMAINS si problème
             domains = TARGET_DOMAINS
             logger.warning(f"⚠️  Utilisation de la liste par défaut: {len(domains)} sites")
     
-    # Extraction des données
-    websites_data = api_client.extract_all_websites(
-        domains=domains,
-        start_date=period['start_date'],
-        end_date=period['end_date']
-    )
+    # Convertir les dates en mois
+    months = convert_date_range_to_months(start_date_str, end_date_str)
+    
+    all_results = []
+    
+    for month in months:
+        logger.info(f"🌐 Extraction websites pour {month}...")
+        
+        # Extraire avec le format correct
+        websites_data = api_client.extract_all_websites(
+            domains=domains,
+            start_date=month,  # Format YYYY-MM
+            end_date=month     # Format YYYY-MM
+        )
+        
+        # Modifier la granularité si nécessaire
+        if granularity == 'daily':
+            for website in websites_data:
+                domain = website['domain']
+                try:
+                    # Refaire les appels avec granularité quotidienne
+                    for metric_name, endpoint in WEBSITE_METRICS_ENDPOINTS.items():
+                        daily_data = api_client.get_website_metric(
+                            domain=domain,
+                            metric_endpoint=endpoint,
+                            start_date=month,
+                            end_date=month,
+                            granularity='daily'
+                        )
+                        if daily_data:
+                            website['metrics'][metric_name] = daily_data
+                except Exception as e:
+                    logger.warning(f"Granularité quotidienne non disponible pour {domain}: {e}")
+        
+        all_results.extend(websites_data)
     
     # Statistiques
     stats = {
-        'total': len(websites_data),
-        'success': len([w for w in websites_data if any(w['metrics'].values())]),
-        'errors': len([w for w in websites_data if not any(w['metrics'].values())])
+        'total': len(all_results),
+        'success': len([w for w in all_results if any(w['metrics'].values())]),
+        'errors': len([w for w in all_results if not any(w['metrics'].values())])
     }
-    
-    # Sauvegarde avec timestamp
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"websites_extraction_{timestamp}.json"
-    save_results_to_json(websites_data, filename)
     
     logger.info(f"🌐 Sites web: {stats['success']}/{stats['total']} extraits avec succès")
     
-    return stats
-
-
-def create_extraction_summary(segments_stats: Dict, websites_stats: Dict, 
-                            period: Dict[str, str]) -> Dict:
-    """
-    Crée un résumé de l'extraction pour logging et monitoring
+    # Sauvegarde
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"websites_extraction_{timestamp}.json"
+    save_results_to_json(all_results, filename)
     
-    Args:
-        segments_stats: Statistiques des segments
-        websites_stats: Statistiques des sites web
-        period: Période d'extraction
-        
-    Returns:
-        Résumé complet de l'extraction
-    """
-    return {
-        'extraction_timestamp': datetime.now().isoformat(),
-        'period': period,
-        'segments': segments_stats,
-        'websites': websites_stats,
-        'total_api_calls': segments_stats['total'] * 2 + websites_stats['total'] * 6,
-        'status': 'success' if segments_stats['errors'] == 0 and websites_stats['errors'] == 0 else 'partial_success'
-    }
+    return all_results
 
 
-def main(event=None, context=None):
-    """
-    Fonction principale d'extraction
-    Compatible avec Cloud Functions (event, context) et exécution locale
+def main():
+    """Fonction principale corrigée"""
+    import argparse
     
-    Args:
-        event: Event Cloud Functions (optionnel)
-        context: Context Cloud Functions (optionnel)
-        
-    Returns:
-        Résumé de l'extraction
-    """
-    logger.info("🚀 Démarrage de l'extraction quotidienne SimilarWeb")
+    parser = argparse.ArgumentParser(description='Extraction SimilarWeb avec dates corrigées')
+    parser.add_argument('--start-date', required=True, help='Date de début (YYYY-MM-DD)')
+    parser.add_argument('--end-date', required=True, help='Date de fin (YYYY-MM-DD)')
+    parser.add_argument('--granularity', choices=['monthly', 'daily'], default='monthly',
+                       help='Granularité des données')
+    parser.add_argument('--test', action='store_true', help='Mode test (limite à 1 segment)')
+    parser.add_argument('--segments-only', action='store_true', help='Extraire seulement les segments')
+    parser.add_argument('--websites-only', action='store_true', help='Extraire seulement les websites')
+    
+    args = parser.parse_args()
+    
+    logger.info(f"🚀 Extraction SimilarWeb")
+    logger.info(f"📅 Période: {args.start_date} à {args.end_date}")
+    logger.info(f"📊 Granularité: {args.granularity}")
     
     try:
-        # Déterminer la période d'extraction
-        period = get_extraction_period()
-        logger.info(f"📅 Période d'extraction: {period['start_date']} à {period['end_date']}")
-        
         # Initialiser le client API
         api_client = SimilarWebAPI()
         
-        # Extraction des segments (limite à 10 pour les tests)
-        segments_stats = extract_and_save_segments(
-            api_client=api_client,
-            period=period,
-            limit=10 if event and event.get('test_mode') else None
-        )
+        results = {}
         
-        # Extraction des sites web
-        websites_stats = extract_and_save_websites(
-            api_client=api_client,
-            period=period
-        )
+        # Extraction des segments
+        if not args.websites_only:
+            segments_data = extract_segments_for_period(
+                api_client=api_client,
+                start_date_str=args.start_date,
+                end_date_str=args.end_date,
+                granularity=args.granularity,
+                limit=1 if args.test else None
+            )
+            results['segments'] = len(segments_data)
         
-        # Créer le résumé
-        summary = create_extraction_summary(segments_stats, websites_stats, period)
+        # Extraction des websites
+        if not args.segments_only:
+            websites_data = extract_websites_for_period(
+                api_client=api_client,
+                start_date_str=args.start_date,
+                end_date_str=args.end_date,
+                granularity=args.granularity
+            )
+            results['websites'] = len(websites_data)
         
-        # Sauvegarder le résumé
+        # Résumé
+        summary = {
+            'extraction_timestamp': datetime.now().isoformat(),
+            'period': f"{args.start_date} to {args.end_date}",
+            'granularity': args.granularity,
+            'results': results,
+            'status': 'success'
+        }
+        
         save_results_to_json(summary, 'extraction_summary_latest.json')
         
         logger.info("✅ Extraction terminée avec succès!")
-        logger.info(f"📊 Total API calls: {summary['total_api_calls']}")
+        print(json.dumps(summary, indent=2))
         
         return summary
         
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'extraction: {str(e)}")
-        
         error_summary = {
             'extraction_timestamp': datetime.now().isoformat(),
             'status': 'error',
             'error': str(e)
         }
-        
-        save_results_to_json(error_summary, 'extraction_error_latest.json')
-        
-        # Re-lancer l'exception pour Cloud Functions
+        print(json.dumps(error_summary, indent=2))
         raise
 
 
 if __name__ == "__main__":
-    # Pour les tests locaux
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Extraction quotidienne SimilarWeb')
-    parser.add_argument('--test', action='store_true', help='Mode test (limite à 10 segments)')
-    parser.add_argument('--start-date', help='Date de début (YYYY-MM)')
-    parser.add_argument('--end-date', help='Date de fin (YYYY-MM)')
-    
-    args = parser.parse_args()
-    
-    # Créer un event fictif pour les tests
-    event = {'test_mode': args.test} if args.test else None
-    
-    # Modifier la période si spécifiée
-    if args.start_date and args.end_date:
-        # Monkey patch pour tester avec des dates spécifiques
-        original_get_period = get_extraction_period
-        def custom_get_period(lookback_days=30):
-            return {
-                'start_date': args.start_date,
-                'end_date': args.end_date
-            }
-        get_extraction_period = custom_get_period
-    
-    # Exécuter l'extraction
-    result = main(event)
-    
-    print(json.dumps(result, indent=2)) 
+    main()

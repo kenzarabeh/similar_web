@@ -17,7 +17,7 @@ except ImportError:
     pass
 
 # === Configuration API SimilarWeb ===
-SIMILARWEB_API_KEY = os.environ.get('SIMILARWEB_API_KEY', 'YOUR_API_KEY_HERE')
+SIMILARWEB_API_KEY = os.environ.get('SIMILARWEB_API_KEY', 'cf28c9c5f0fe4feebf3066d92a70e3c3')
 SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v1'
 
 # Headers par défaut pour l'API
