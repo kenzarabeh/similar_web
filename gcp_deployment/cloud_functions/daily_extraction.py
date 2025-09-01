@@ -67,7 +67,7 @@ def extract_and_save_segments(api_client: SimilarWebAPI, period: Dict[str, str],
     Returns:
         Statistiques de l'extraction
     """
-    logger.info("=== EXTRACTION DES SEGMENTS ===")
+    logger.info("EXTRACTION DES SEGMENTS")
     
     # Extraction des données
     segments_data = api_client.extract_all_segments(
@@ -92,7 +92,7 @@ def extract_and_save_segments(api_client: SimilarWebAPI, period: Dict[str, str],
     if os.environ.get('FUNCTION_NAME') or os.environ.get('GCP_PROJECT_ID'):
         try:
             from bigquery_utils import save_segments_to_bigquery
-            project_id = os.environ.get('GCP_PROJECT_ID', GCP_PROJECT_ID)
+            project_id = os.environ.get('GCP_PROJECT_ID')
             rows_inserted = save_segments_to_bigquery(segments_data, project_id)
             logger.info(f"✅ {rows_inserted} lignes insérées dans BigQuery")
         except Exception as e:

@@ -18,7 +18,7 @@ def test_quota_with_both_keys():
     
     # Les deux clés API vues dans les logs
     old_key = "dc5e226abe0b4ba8bb506e192f61186a"  # Clé qui marchait ce matin
-    new_key = "cf28c9c5f0fe4feebf3066d92a70e3c3"   # Nouvelle clé
+    new_key = "dc5e226abe0b4ba8bb506e192f61186a"   # Nouvelle clé
     
     keys_to_test = [
         ("Ancienne clé (marchait ce matin)", old_key),

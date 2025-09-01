@@ -23,7 +23,7 @@ class BigQueryUploaderFixed:
         # Utiliser la variable d'environnement ou le projet par défaut
         self.project_id = project_id or os.environ.get('GCP_PROJECT_ID', 'lec-lco-mkt-acquisition-prd')
         self.client = bigquery.Client(project=self.project_id)
-        self.dataset_id = 'analytics_transformations'
+        self.dataset_id = 'similar_web_data'
         logger.info(f"📊 Configuration: Projet {self.project_id}, Dataset {self.dataset_id}")
         
     def upload_segments(self, file_pattern='data/segments_extraction_*.json'):
