@@ -70,12 +70,12 @@ def extract_segments_for_period(api_client: SimilarWebAPI, start_date_str: str,
     
     # Convertir les dates en mois
     months = convert_date_range_to_months(start_date_str, end_date_str)
-    logger.info(f"📅 Mois à extraire: {months}")
+    logger.info(f"Mois à extraire: {months}")
     
     all_results = []
     
     for month in months:
-        logger.info(f"📊 Extraction pour {month}...")
+        logger.info(f"Extraction pour {month}")
         
         # Utiliser le format correct pour l'API
         segments_data = api_client.extract_all_segments(
@@ -111,7 +111,7 @@ def extract_segments_for_period(api_client: SimilarWebAPI, start_date_str: str,
         'errors': len([s for s in all_results if s.get('error')])
     }
     
-    logger.info(f"📊 Segments: {stats['success']}/{stats['total']} extraits avec succès")
+    logger.info(f"Segments: {stats['success']}/{stats['total']} extraits avec succès")
     
     # Sauvegarde
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -137,17 +137,17 @@ def extract_websites_for_period(api_client: SimilarWebAPI, start_date_str: str,
     Returns:
         Liste des données extraites
     """
-    logger.info("=== EXTRACTION DES SITES WEB ===")
+    logger.info("Extraction des sites webs")
     
     # Charger les domaines
     if domains is None:
         try:
             from scripts.manage_websites import load_websites
             domains = load_websites()
-            logger.info(f"📋 {len(domains)} sites web chargés")
+            logger.info(f"{len(domains)} sites web chargés")
         except:
             domains = TARGET_DOMAINS
-            logger.warning(f"⚠️  Utilisation de la liste par défaut: {len(domains)} sites")
+            logger.warning(f"Utilisation de la liste par défaut: {len(domains)} sites")
     
     # Convertir les dates en mois
     months = convert_date_range_to_months(start_date_str, end_date_str)
@@ -155,7 +155,7 @@ def extract_websites_for_period(api_client: SimilarWebAPI, start_date_str: str,
     all_results = []
     
     for month in months:
-        logger.info(f"🌐 Extraction websites pour {month}...")
+        logger.info(f"Extraction websites pour {month}")
         
         # Extraire avec le format correct
         websites_data = api_client.extract_all_websites(
@@ -192,7 +192,7 @@ def extract_websites_for_period(api_client: SimilarWebAPI, start_date_str: str,
         'errors': len([w for w in all_results if not any(w['metrics'].values())])
     }
     
-    logger.info(f"🌐 Sites web: {stats['success']}/{stats['total']} extraits avec succès")
+    logger.info(f"Sites web: {stats['success']}/{stats['total']} extraits avec succès")
     
     # Sauvegarde
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -217,9 +217,9 @@ def main():
     
     args = parser.parse_args()
     
-    logger.info(f"🚀 Extraction SimilarWeb")
-    logger.info(f"📅 Période: {args.start_date} à {args.end_date}")
-    logger.info(f"📊 Granularité: {args.granularity}")
+    logger.info(f"Extraction SimilarWeb")
+    logger.info(f"Période: {args.start_date} à {args.end_date}")
+    logger.info(f"Granularité: {args.granularity}")
     
     try:
         # Initialiser le client API
@@ -259,13 +259,13 @@ def main():
         
         save_results_to_json(summary, 'extraction_summary_latest.json')
         
-        logger.info("✅ Extraction terminée avec succès!")
+        logger.info("Extraction terminée avec succès")
         print(json.dumps(summary, indent=2))
         
         return summary
         
     except Exception as e:
-        logger.error(f"❌ Erreur lors de l'extraction: {str(e)}")
+        logger.error(f"Erreur lors de l'extraction: {str(e)}")
         error_summary = {
             'extraction_timestamp': datetime.now().isoformat(),
             'status': 'error',

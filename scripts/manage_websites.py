@@ -51,7 +51,7 @@ def save_websites(domains: List[str]):
     with open(WEBSITES_CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=2)
     
-    print(f"✅ {len(data['domains'])} sites web sauvegardés dans {WEBSITES_CONFIG_FILE}")
+    print(f"{len(data['domains'])} sites web sauvegardés dans {WEBSITES_CONFIG_FILE}")
 
 
 def add_websites(new_domains: List[str]):
@@ -71,7 +71,7 @@ def add_websites(new_domains: List[str]):
     after_count = len(load_websites())
     added_count = after_count - before_count
     
-    print(f"✅ {added_count} nouveaux sites ajoutés (total: {after_count})")
+    print(f"{added_count} nouveaux sites ajoutés (total: {after_count})")
     
     # Afficher les domaines ajoutés
     if added_count > 0:
@@ -96,7 +96,7 @@ def remove_websites(domains_to_remove: List[str]):
     
     removed_count = before_count - len(updated_domains)
     
-    print(f"✅ {removed_count} sites supprimés (reste: {len(updated_domains)})")
+    print(f"{removed_count} sites supprimés (reste: {len(updated_domains)})")
 
 
 def list_websites():
@@ -105,7 +105,7 @@ def list_websites():
     """
     domains = load_websites()
     
-    print(f"\n📋 Sites web configurés ({len(domains)}):")
+    print(f"\nSites web configurés ({len(domains)}):")
     print("-" * 40)
     
     for i, domain in enumerate(sorted(domains), 1):
@@ -197,10 +197,10 @@ def suggest_websites():
     suggestions = [d for d in SUGGESTED_WEBSITES if d not in current_domains]
     
     if not suggestions:
-        print("✅ Tous les sites suggérés sont déjà dans votre liste!")
+        print("Tous les sites suggérés sont déjà dans votre liste!")
         return
     
-    print(f"\n💡 Sites suggérés non présents dans votre liste ({len(suggestions)}):")
+    print(f"\nSites suggérés non présents dans votre liste ({len(suggestions)}):")
     print("-" * 50)
     
     for i, domain in enumerate(suggestions, 1):
@@ -245,7 +245,7 @@ if __name__ == "__main__":
             if to_add:
                 add_websites(to_add)
             else:
-                print("✅ Tous les sites suggérés sont déjà dans la liste!")
+                print("Tous les sites suggérés sont déjà dans la liste!")
         elif args.domains:
             # Valider les domaines
             valid_domains = []
@@ -253,12 +253,12 @@ if __name__ == "__main__":
                 if validate_domain(domain):
                     valid_domains.append(domain)
                 else:
-                    print(f"⚠️  Domaine invalide ignoré: {domain}")
+                    print(f"Domaine invalide ignoré: {domain}")
             
             if valid_domains:
                 add_websites(valid_domains)
         else:
-            print("❌ Veuillez spécifier des domaines ou utiliser --all-suggestions")
+            print("Veuillez spécifier des domaines ou utiliser --all-suggestions")
     
     elif args.command == 'remove':
         remove_websites(args.domains)

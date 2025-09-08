@@ -75,7 +75,7 @@ def extract_and_save_segments(api_client: SimilarWebAPI, period: Dict[str, str],
     Returns:
         Statistiques de l'extraction
     """
-    logger.info(f"📊 Extraction segments pour {period['start_date'][:7]}")
+    logger.info(f"Extraction segments pour {period['start_date'][:7]}")
     
     # Convertir les dates au format YYYY-MM pour l'API
     start_month = period['start_date'][:7]  # YYYY-MM
@@ -101,7 +101,7 @@ def extract_and_save_segments(api_client: SimilarWebAPI, period: Dict[str, str],
     filename = f"segments_extraction_{start_month.replace('-', '')}_{timestamp}.json"
     save_results_to_json(segments_data, filename)
     
-    logger.info(f"✅ Segments {period['start_date'][:7]}: {stats['success']}/{stats['total']} extraits")
+    logger.info(f"Segments {period['start_date'][:7]}: {stats['success']}/{stats['total']} extraits")
     
     return stats
 
@@ -127,7 +127,7 @@ def extract_and_save_websites(api_client: SimilarWebAPI, period: Dict[str, str])
     try:
         from scripts.manage_websites import load_websites
         domains = load_websites()
-        logger.info(f"📋 {len(domains)} sites web chargés")
+        logger.info(f"{len(domains)} sites web chargés")
     except:
         domains = TARGET_DOMAINS
         logger.warning(f"Utilisation de la liste par défaut: {len(domains)} sites")
@@ -151,7 +151,7 @@ def extract_and_save_websites(api_client: SimilarWebAPI, period: Dict[str, str])
     filename = f"websites_extraction_{start_month.replace('-', '')}_{timestamp}.json"
     save_results_to_json(websites_data, filename)
     
-    logger.info(f"✅ Websites {period['start_date'][:7]}: {stats['success']}/{stats['total']} extraits")
+    logger.info(f"Websites {period['start_date'][:7]}: {stats['success']}/{stats['total']} extraits")
     
     return stats
 
@@ -191,7 +191,7 @@ def run_backfill(start_year: int = 2024, end_month: str = None,
         limit_segments: Limiter le nombre de segments (None = tous)
         batch_size: Nombre de mois à traiter par batch
     """
-    logger.info("🚀 Démarrage du backfill historique")
+    logger.info("Démarrage du backfill historique")
     
     # Initialiser le client API
     api_client = SimilarWebAPI()
@@ -209,10 +209,10 @@ def run_backfill(start_year: int = 2024, end_month: str = None,
         from scripts.manage_websites import load_websites
         domains = load_websites()
         websites_count = len(domains)
-        logger.info(f"📋 {websites_count} sites web chargés depuis la configuration")
+        logger.info(f"{websites_count} sites web chargés depuis la configuration")
     except:
         websites_count = len(TARGET_DOMAINS)
-        logger.warning(f"⚠️ Utilisation de la liste par défaut: {websites_count} sites")
+        logger.warning(f"Utilisation de la liste par défaut: {websites_count} sites")
     
     # Générer les périodes
     periods = get_historical_periods()
@@ -229,19 +229,19 @@ def run_backfill(start_year: int = 2024, end_month: str = None,
     # Estimation
     estimation = estimate_api_calls(periods, segments_count, websites_count)
     
-    logger.info(f"📊 ESTIMATION DU BACKFILL:")
+    logger.info(f"ESTIMATION DU BACKFILL:")
     logger.info(f"   - Périodes: {estimation['periods']} mois")
     logger.info(f"   - Segments: {segments_count}")
     logger.info(f"   - Sites web: {websites_count}")
     logger.info(f"   - Appels API totaux: {estimation['total_calls']:,}")
     logger.info(f"   - Temps estimé: {estimation['estimated_time_minutes']} minutes")
     
-    logger.info(f"\n📅 Périodes à extraire:")
+    logger.info(f"\nPériodes à extraire:")
     for period in periods:
         logger.info(f"   - {period['start_date'][:7]}")
     
     # Confirmation
-    response = input(f"\n⚠️ Voulez-vous continuer avec {len(periods)} mois? (y/n): ")
+    response = input(f"\nVoulez-vous continuer avec {len(periods)} mois? (y/n): ")
     if response.lower() != 'y':
         logger.info("Backfill annulé")
         return
@@ -258,11 +258,11 @@ def run_backfill(start_year: int = 2024, end_month: str = None,
     # Traiter par batch
     for i in range(0, len(periods), batch_size):
         batch = periods[i:i + batch_size]
-        logger.info(f"\n📦 BATCH {i//batch_size + 1}/{(len(periods) + batch_size - 1)//batch_size}")
+        logger.info(f"\nBATCH {i//batch_size + 1}/{(len(periods) + batch_size - 1)//batch_size}")
         
         for period in batch:
             try:
-                logger.info(f"\n🗓️ Période: {period['start_date'][:7]}")
+                logger.info(f"\nPériode: {period['start_date'][:7]}")
                 
                 # Extraction des segments
                 segment_stats = extract_and_save_segments(
@@ -282,31 +282,31 @@ def run_backfill(start_year: int = 2024, end_month: str = None,
                 stats['periods_processed'] += 1
                 
                 # Pause entre les périodes
-                logger.info(f"   ⏸️ Pause de 5 secondes...")
+                logger.info(f"   Pause de 5 secondes...")
                 time.sleep(5)
                 
             except Exception as e:
-                logger.error(f"❌ Erreur pour la période {period['start_date'][:7]}: {e}")
+                logger.error(f"Erreur pour la période {period['start_date'][:7]}: {e}")
                 stats['errors'] += 1
                 continue
         
         # Pause plus longue entre les batchs
         if i + batch_size < len(periods):
-            logger.info(f"\n⏸️ Pause de 30 secondes entre les batchs...")
+            logger.info(f"\nPause de 30 secondes entre les batchs...")
             time.sleep(30)
     
     # Résumé final
     duration = (datetime.now() - stats['start_time']).total_seconds() / 60
     
     logger.info("\n" + "="*50)
-    logger.info("✅ BACKFILL TERMINÉ")
+    logger.info("BACKFILL TERMINÉ")
     logger.info(f"   - Durée: {duration:.1f} minutes")
     logger.info(f"   - Périodes traitées: {stats['periods_processed']}")
     logger.info(f"   - Segments extraits: {stats['segments_extracted']}")
     logger.info(f"   - Sites web extraits: {stats['websites_extracted']}")
     logger.info(f"   - Erreurs: {stats['errors']}")
     
-    logger.info(f"\n📁 Fichiers créés dans le dossier 'data/'")
+    logger.info(f"\nFichiers créés dans le dossier 'data/'")
     logger.info(f"   - Utilisez: python scripts/upload_to_bigquery.py --type all")
     
     return stats

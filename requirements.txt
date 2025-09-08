@@ -12,11 +12,6 @@ google-cloud-bigquery==3.13.0
 google-cloud-storage==2.13.0
 google-cloud-functions==1.15.0
 
-# Jupyter and analysis tools
-jupyter==1.0.0
-notebook==7.0.6
-ipykernel==6.27.1
-
 # Data processing
 openpyxl==3.1.2  # For Excel export
 pyarrow==14.0.1  # For Parquet support

@@ -30,7 +30,7 @@ class BigQueryUploaderWithDeduplication:
         self._existing_segments = None
         self._existing_websites = None
         
-        logger.info(f"📊 Configuration: Projet {self.project_id}, Dataset {self.dataset_id}")
+        logger.info(f"Configuration: Projet {self.project_id}, Dataset {self.dataset_id}")
     
     def get_existing_segments_keys(self) -> Set[Tuple[str, str]]:
         """
@@ -42,7 +42,7 @@ class BigQueryUploaderWithDeduplication:
         if self._existing_segments is not None:
             return self._existing_segments
         
-        logger.info("🔍 Récupération des segments existants dans BigQuery...")
+        logger.info("Récupération des segments existants dans BigQuery...")
         
         query = f"""
         SELECT DISTINCT 
@@ -60,11 +60,11 @@ class BigQueryUploaderWithDeduplication:
                 existing_keys.add(key)
             
             self._existing_segments = existing_keys
-            logger.info(f"✅ {len(existing_keys)} segments existants trouvés")
+            logger.info(f"{len(existing_keys)} segments existants trouvés")
             return existing_keys
             
         except Exception as e:
-            logger.warning(f"⚠️ Erreur lors de la récupération des segments existants: {e}")
+            logger.warning(f"Erreur lors de la récupération des segments existants: {e}")
             return set()
     
     def get_existing_websites_keys(self) -> Set[Tuple[str, str]]:
@@ -77,7 +77,7 @@ class BigQueryUploaderWithDeduplication:
         if self._existing_websites is not None:
             return self._existing_websites
         
-        logger.info("🔍 Récupération des websites existants dans BigQuery...")
+        logger.info("Récupération des websites existants dans BigQuery...")
         
         query = f"""
         SELECT DISTINCT 
@@ -95,20 +95,20 @@ class BigQueryUploaderWithDeduplication:
                 existing_keys.add(key)
             
             self._existing_websites = existing_keys
-            logger.info(f"✅ {len(existing_keys)} websites existants trouvés")
+            logger.info(f"{len(existing_keys)} websites existants trouvés")
             return existing_keys
             
         except Exception as e:
-            logger.warning(f"⚠️ Erreur lors de la récupération des websites existants: {e}")
+            logger.warning(f"Erreur lors de la récupération des websites existants: {e}")
             return set()
     
     def upload_segments(self, file_pattern='data/segments_extraction_*.json'):
         """Upload les fichiers de segments vers BigQuery en évitant les doublons"""
         files = glob.glob(file_pattern)
-        logger.info(f"📊 {len(files)} fichiers segments trouvés")
+        logger.info(f"{len(files)} fichiers segments trouvés")
         
         if not files:
-            logger.warning("⚠️ Aucun fichier segments trouvé")
+            logger.warning("Aucun fichier segments trouvé")
             return 0
         
         # Récupérer les données existantes
@@ -122,11 +122,11 @@ class BigQueryUploaderWithDeduplication:
         
         for file_path in sorted(files):
             try:
-                logger.info(f"📁 Traitement: {os.path.basename(file_path)}")
+                logger.info(f"Traitement: {os.path.basename(file_path)}")
                 rows = self._process_segments_file(file_path)
                 
                 if not rows:
-                    logger.warning(f"⚠️ {file_path}: Aucune donnée trouvée")
+                    logger.warning(f"{file_path}: Aucune donnée trouvée")
                     continue
                 
                 # Filtrer les doublons
@@ -149,17 +149,17 @@ class BigQueryUploaderWithDeduplication:
                     # Upload vers BigQuery
                     errors = self.client.insert_rows_json(table_id, new_rows)
                     if errors:
-                        logger.error(f"❌ Erreur pour {file_path}: {errors}")
+                        logger.error(f"Erreur pour {file_path}: {errors}")
                     else:
                         total_rows_uploaded += len(new_rows)
-                        logger.info(f"✅ {os.path.basename(file_path)}: {len(new_rows)} nouvelles lignes uploadées ({skipped_count} doublons ignorés)")
+                        logger.info(f"{os.path.basename(file_path)}: {len(new_rows)} nouvelles lignes uploadées ({skipped_count} doublons ignorés)")
                 else:
-                    logger.info(f"⏭️ {os.path.basename(file_path)}: Toutes les données existent déjà ({skipped_count} doublons)")
+                    logger.info(f" {os.path.basename(file_path)}: Toutes les données existent déjà ({skipped_count} doublons)")
                     
             except Exception as e:
-                logger.error(f"❌ Erreur {file_path}: {str(e)}")
+                logger.error(f"Erreur {file_path}: {str(e)}")
         
-        logger.info(f"📊 RÉSUMÉ SEGMENTS:")
+        logger.info(f"RÉSUMÉ SEGMENTS:")
         logger.info(f"   - Lignes traitées: {total_rows_processed}")
         logger.info(f"   - Nouvelles lignes uploadées: {total_rows_uploaded}")
         logger.info(f"   - Doublons ignorés: {total_rows_skipped}")
@@ -169,10 +169,10 @@ class BigQueryUploaderWithDeduplication:
     def upload_websites(self, file_pattern='data/websites_extraction_*.json'):
         """Upload les fichiers de websites vers BigQuery en évitant les doublons"""
         files = glob.glob(file_pattern)
-        logger.info(f"🌐 {len(files)} fichiers websites trouvés")
+        logger.info(f"{len(files)} fichiers websites trouvés")
         
         if not files:
-            logger.warning("⚠️ Aucun fichier websites trouvé")
+            logger.warning("Aucun fichier websites trouvé")
             return 0
         
         # Récupérer les données existantes
@@ -186,11 +186,11 @@ class BigQueryUploaderWithDeduplication:
         
         for file_path in sorted(files):
             try:
-                logger.info(f"📁 Traitement: {os.path.basename(file_path)}")
+                logger.info(f"Traitement: {os.path.basename(file_path)}")
                 rows = self._process_websites_file(file_path)
                 
                 if not rows:
-                    logger.warning(f"⚠️ {file_path}: Aucune donnée trouvée")
+                    logger.warning(f"{file_path}: Aucune donnée trouvée")
                     continue
                 
                 # Filtrer les doublons
@@ -213,17 +213,17 @@ class BigQueryUploaderWithDeduplication:
                     # Upload vers BigQuery
                     errors = self.client.insert_rows_json(table_id, new_rows)
                     if errors:
-                        logger.error(f"❌ Erreur pour {file_path}: {errors}")
+                        logger.error(f"Erreur pour {file_path}: {errors}")
                     else:
                         total_rows_uploaded += len(new_rows)
-                        logger.info(f"✅ {os.path.basename(file_path)}: {len(new_rows)} nouvelles lignes uploadées ({skipped_count} doublons ignorés)")
+                        logger.info(f"{os.path.basename(file_path)}: {len(new_rows)} nouvelles lignes uploadées ({skipped_count} doublons ignorés)")
                 else:
-                    logger.info(f"⏭️ {os.path.basename(file_path)}: Toutes les données existent déjà ({skipped_count} doublons)")
+                    logger.info(f"{os.path.basename(file_path)}: Toutes les données existent déjà ({skipped_count} doublons)")
                     
             except Exception as e:
-                logger.error(f"❌ Erreur {file_path}: {str(e)}")
+                logger.error(f"Erreur {file_path}: {str(e)}")
         
-        logger.info(f"🌐 RÉSUMÉ WEBSITES:")
+        logger.info(f"RÉSUMÉ WEBSITES:")
         logger.info(f"   - Lignes traitées: {total_rows_processed}")
         logger.info(f"   - Nouvelles lignes uploadées: {total_rows_uploaded}")
         logger.info(f"   - Doublons ignorés: {total_rows_skipped}")
@@ -236,7 +236,7 @@ class BigQueryUploaderWithDeduplication:
             data = json.load(f)
         
         if not isinstance(data, list):
-            logger.warning(f"⚠️ Format inattendu dans {file_path}: attendu une liste")
+            logger.warning(f"Format inattendu dans {file_path}: attendu une liste")
             return []
         
         rows = []
@@ -293,7 +293,7 @@ class BigQueryUploaderWithDeduplication:
             data = json.load(f)
         
         if not isinstance(data, list):
-            logger.warning(f"⚠️ Format inattendu dans {file_path}: attendu une liste")
+            logger.warning(f"Format inattendu dans {file_path}: attendu une liste")
             return []
         
         rows = []
@@ -392,7 +392,7 @@ class BigQueryUploaderWithDeduplication:
     
     def verify_data(self):
         """Vérifie les données dans BigQuery"""
-        logger.info("\n📊 VÉRIFICATION BIGQUERY")
+        logger.info("\nVÉRIFICATION BIGQUERY")
         
         try:
             # Vérifier segments
@@ -408,7 +408,7 @@ class BigQueryUploaderWithDeduplication:
             result = list(self.client.query(query))[0]
             logger.info(f"Segments: {result['total']} lignes, {result['nb_segments']} segments, {result['nb_dates']} dates ({result['min_date']} → {result['max_date']})")
         except Exception as e:
-            logger.error(f"❌ Erreur vérification segments: {e}")
+            logger.error(f"Erreur vérification segments: {e}")
         
         try:
             # Vérifier websites
@@ -424,13 +424,13 @@ class BigQueryUploaderWithDeduplication:
             result = list(self.client.query(query))[0]
             logger.info(f"Websites: {result['total']} lignes, {result['nb_domains']} domaines, {result['nb_dates']} dates ({result['min_date']} → {result['max_date']})")
         except Exception as e:
-            logger.error(f"❌ Erreur vérification websites: {e}")
+            logger.error(f"Erreur vérification websites: {e}")
     
     def clear_cache(self):
         """Vide le cache des données existantes (à utiliser si les données ont changé)"""
         self._existing_segments = None
         self._existing_websites = None
-        logger.info("🔄 Cache des données existantes vidé")
+        logger.info("Cache des données existantes vidé")
 
 
 def main():
@@ -454,7 +454,7 @@ def main():
     if args.clear_cache:
         uploader.clear_cache()
     
-    logger.info("🚀 UPLOAD VERS BIGQUERY (AVEC GESTION DES DOUBLONS)")
+    logger.info("UPLOAD VERS BIGQUERY (AVEC GESTION DES DOUBLONS)")
     logger.info("=" * 60)
     
     total_uploaded = 0
@@ -470,7 +470,7 @@ def main():
     # Vérification finale
     uploader.verify_data()
     
-    logger.info(f"\n🎉 UPLOAD TERMINÉ - {total_uploaded} nouvelles lignes ajoutées")
+    logger.info(f"\nUPLOAD TERMINÉ - {total_uploaded} nouvelles lignes ajoutées")
 
 
 if __name__ == "__main__":

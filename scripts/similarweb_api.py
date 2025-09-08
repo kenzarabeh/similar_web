@@ -109,10 +109,10 @@ class SimilarWebAPI:
         
         if response and 'response' in response:
             segments = response['response'].get('segments', [])
-            logger.info(f"✅ {len(segments)} segments récupérés")
+            logger.info(f"{len(segments)} segments récupérés")
             return segments
         else:
-            logger.error("❌ Impossible de récupérer les segments")
+            logger.error("Impossible de récupérer les segments")
             return None
     
     def get_segment_data(self, segment_id: str, start_date: str, end_date: str, 
@@ -232,12 +232,12 @@ class SimilarWebAPI:
             segment_id = segment.get('segment_id')
             segment_name = segment.get('segment_name', 'N/A')
             
-            logger.info(f"📊 Extraction {i+1}/{len(segments)}: {segment_name}")
+            logger.info(f"Extraction {i+1}/{len(segments)}: {segment_name}")
             
             data = self.get_segment_data(segment_id, start_date, end_date)
             
             if data:
-                logger.info(f"✅ Données récupérées pour {segment_name}")
+                logger.info(f"Données récupérées pour {segment_name}")
                 results.append({
                     'segment_id': segment_id,
                     'segment_name': segment_name,
@@ -245,7 +245,7 @@ class SimilarWebAPI:
                     'extraction_date': get_current_date()
                 })
             else:
-                logger.error(f"❌ Échec pour {segment_name}")
+                logger.error(f"Échec pour {segment_name}")
                 results.append({
                     'segment_id': segment_id,
                     'segment_name': segment_name,
@@ -268,7 +268,7 @@ class SimilarWebAPI:
         Returns:
             Dictionnaire avec toutes les métriques du site
         """
-        logger.info(f"🌐 Extraction pour {domain}")
+        logger.info(f"Extraction pour {domain}")
         
         domain_results = {
             'domain': domain,
@@ -278,15 +278,15 @@ class SimilarWebAPI:
         }
         
         for metric_name, endpoint in WEBSITE_METRICS_ENDPOINTS.items():
-            logger.info(f"  📊 Extraction {metric_name}...")
+            logger.info(f"Extraction {metric_name}...")
             
             data = self.get_website_metric(domain, endpoint, start_date, end_date)
             
             if data:
-                logger.info(f"    ✅ {metric_name} récupéré")
+                logger.info(f"    {metric_name} récupéré")
                 domain_results['metrics'][metric_name] = data
             else:
-                logger.error(f"    ❌ Échec {metric_name}")
+                logger.error(f"    Échec {metric_name}")
                 domain_results['metrics'][metric_name] = None
         
         return domain_results
@@ -327,7 +327,7 @@ def save_results_to_json(data: Any, filename: str) -> None:
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     
-    logger.info(f"💾 Résultats sauvegardés dans {filepath}")
+    logger.info(f"Résultats sauvegardés dans {filepath}")
 
 
 if __name__ == "__main__":

@@ -6,11 +6,11 @@ Stratégie de backfill pour récupérer toutes les données historiques
 def create_backfill_plan():
     """Crée un plan optimisé pour récupérer toutes les données"""
     
-    print("🎯 PLAN DE RÉCUPÉRATION DES DONNÉES HISTORIQUES")
+    print("PLAN DE RÉCUPÉRATION DES DONNÉES HISTORIQUES")
     print("=" * 60)
     
     # Phase 1: Données mensuelles (plus rapide)
-    print("\n📅 PHASE 1: EXTRACTION MENSUELLE (Rapide)")
+    print("\nPHASE 1: EXTRACTION MENSUELLE (Rapide)")
     print("-" * 40)
     print("Objectif: Vue d'ensemble rapide")
     print("Méthode: Granularité 'monthly'")
@@ -30,7 +30,7 @@ def create_backfill_plan():
         print(f"  {month}", end="")
     
     # Phase 2: Données quotidiennes (plus long)
-    print("\n\n📅 PHASE 2: EXTRACTION QUOTIDIENNE (Détaillée)")
+    print("\n\nPHASE 2: EXTRACTION QUOTIDIENNE (Détaillée)")
     print("-" * 40)
     print("Objectif: Données complètes jour par jour")
     print("Méthode: Granularité 'daily'")
@@ -47,7 +47,7 @@ def create_backfill_plan():
     print("  Batch 6: Avril-Juin 2025 (78 jours)")
     
     # Commandes à exécuter
-    print("\n💻 COMMANDES À EXÉCUTER")
+    print("\nCOMMANDES À EXÉCUTER")
     print("-" * 40)
     print("\n# 1. Test avec 1 mois (pour vérifier)")
     print("python3 scripts/historical_backfill.py --start-date 2024-01 --end-date 2024-01 --limit-segments 5")
@@ -63,14 +63,14 @@ def create_backfill_plan():
     print("python3 scripts/check_missing_data.py")
     
     # Automatisation future
-    print("\n🤖 AUTOMATISATION FUTURE (Cloud Functions)")
+    print("\nAUTOMATISATION FUTURE (Cloud Functions)")
     print("-" * 40)
     print("1. Déployer la Cloud Function avec logique rétroactive")
     print("2. Configurer Cloud Scheduler (quotidien à 2h)")
     print("3. La fonction vérifiera automatiquement J-2 à J-7")
     print("4. Plus jamais de données manquantes !")
     
-    print("\n⚠️  IMPORTANT")
+    print("\nIMPORTANT")
     print("-" * 40)
     print("- Faire les extractions en dehors des heures de pointe")
     print("- Surveiller les quotas API")

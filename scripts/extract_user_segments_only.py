@@ -15,16 +15,16 @@ from scripts.daily_extraction import extract_and_save_segments
 
 
 def main():
-    print("🚀 Extraction des données pour VOS 88 segments personnels")
+    print("Extraction des données pour VOS 88 segments personnels")
     print("=" * 60)
     
     # Initialiser le client API
     api = SimilarWebAPI()
     
     # Vérifier d'abord combien de segments nous avons
-    print("\n📊 Vérification des segments personnels...")
+    print("\nVérification des segments personnels...")
     user_segments = api.get_custom_segments(user_only=True)
-    print(f"✅ {len(user_segments)} segments personnels trouvés")
+    print(f"{len(user_segments)} segments personnels trouvés")
     
     # Périodes à extraire
     periods = [
@@ -39,7 +39,7 @@ def main():
     }
     
     for period in periods:
-        print(f"\n📅 Extraction pour {period['label']}...")
+        print(f"\nExtraction pour {period['label']}...")
         
         # Extraire et sauvegarder
         stats = extract_and_save_segments(
@@ -52,18 +52,18 @@ def main():
         total_stats['segments_extracted'] += stats['success']
         total_stats['errors'] += stats['errors']
         
-        print(f"   ✅ {stats['success']} segments extraits avec succès")
+        print(f"   {stats['success']} segments extraits avec succès")
         if stats['errors'] > 0:
-            print(f"   ⚠️  {stats['errors']} erreurs")
+            print(f"   {stats['errors']} erreurs")
     
     # Résumé final
     duration = (datetime.now() - total_stats['start_time']).total_seconds() / 60
     print(f"\n{'='*60}")
-    print(f"✅ EXTRACTION TERMINÉE")
+    print(f"EXTRACTION TERMINÉE")
     print(f"   - Durée totale: {duration:.1f} minutes")
     print(f"   - Segments extraits: {total_stats['segments_extracted']}")
     print(f"   - Erreurs: {total_stats['errors']}")
-    print(f"\n💡 Les fichiers JSON sont dans le dossier 'data/'")
+    print(f"\nLes fichiers JSON sont dans le dossier 'data/'")
     
     # Créer un résumé des segments extraits
     summary = {
@@ -76,7 +76,7 @@ def main():
     }
     
     save_results_to_json(summary, 'user_segments_extraction_summary.json')
-    print(f"📋 Résumé sauvegardé dans 'data/user_segments_extraction_summary.json'")
+    print(f"Résumé sauvegardé dans 'data/user_segments_extraction_summary.json'")
 
 
 if __name__ == "__main__":

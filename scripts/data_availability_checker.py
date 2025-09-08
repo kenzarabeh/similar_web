@@ -231,7 +231,7 @@ class DataAvailabilityChecker:
             'errors': []
         }
         
-        logger.info(f"🔄 Récupération de {len(missing_dates)} dates manquantes")
+        logger.info(f"Récupération de {len(missing_dates)} dates manquantes")
         
         for date_str in missing_dates:
             try:
@@ -241,7 +241,7 @@ class DataAvailabilityChecker:
                     'end_date': date_str[:7]
                 }
                 
-                logger.info(f"📅 Récupération pour {period['start_date']}")
+                logger.info(f"Récupération pour {period['start_date']}")
                 
                 if data_type in ['segments', 'both']:
                     segment_stats = extract_and_save_segments(
@@ -267,7 +267,7 @@ class DataAvailabilityChecker:
                 time.sleep(3)
                 
             except Exception as e:
-                logger.error(f"❌ Erreur pour {date_str}: {e}")
+                logger.error(f"Erreur pour {date_str}: {e}")
                 stats['errors'].append({'date': date_str, 'error': str(e)})
         
         return stats
@@ -432,25 +432,25 @@ if __name__ == "__main__":
             args.type
         )
         
-        print("\n📊 RAPPORT DE COMPLÉTUDE DES DONNÉES")
+        print("\nRAPPORT DE COMPLÉTUDE DES DONNÉES")
         print("="*50)
         print(f"Période: {report['period']}")
         print(f"Dates attendues: {report['summary']['expected_dates']}")
         
         if args.type in ['segments', 'both']:
-            print(f"\n📈 Segments:")
+            print(f"\nSegments:")
             print(f"  - Complètes: {report['summary']['segments_complete']}")
             print(f"  - Manquantes: {report['summary']['segments_missing']}")
             print(f"  - Taux: {report['summary']['completeness_rate']['segments']:.1f}%")
         
         if args.type in ['websites', 'both']:
-            print(f"\n🌐 Sites web:")
+            print(f"\nSites web:")
             print(f"  - Complètes: {report['summary']['websites_complete']}")
             print(f"  - Manquantes: {report['summary']['websites_missing']}")
             print(f"  - Taux: {report['summary']['completeness_rate']['websites']:.1f}%")
         
         if report['missing_dates']['both']:
-            print(f"\n⚠️  Dates manquantes:")
+            print(f"\nDates manquantes:")
             for date in report['missing_dates']['both'][:10]:
                 print(f"  - {date}")
             if len(report['missing_dates']['both']) > 10:
@@ -472,7 +472,7 @@ if __name__ == "__main__":
                 missing = report['missing_dates']['websites']
             
             if missing:
-                print(f"\n🔍 {len(missing)} dates manquantes trouvées")
+                print(f"\n{len(missing)} dates manquantes trouvées")
                 response = input("Voulez-vous les récupérer? (y/n): ")
                 
                 if response.lower() == 'y':
@@ -482,37 +482,37 @@ if __name__ == "__main__":
                         args.limit_segments
                     )
                     
-                    print(f"\n✅ Récupération terminée:")
+                    print(f"\nRécupération terminée:")
                     print(f"  - Dates traitées: {stats['dates_processed']}")
                     print(f"  - Segments extraits: {stats['segments_extracted']}")
                     print(f"  - Sites web extraits: {stats['websites_extracted']}")
                     print(f"  - Erreurs: {len(stats['errors'])}")
             else:
-                print("✅ Aucune donnée manquante!")
+                print("Aucune donnée manquante!")
     
     elif args.command == 'weekly-report':
         report = checker.generate_weekly_report()
         
-        print("\n📅 RAPPORT HEBDOMADAIRE")
+        print("\nRAPPORT HEBDOMADAIRE")
         print("="*50)
         print(f"Complétude segments: {report['summary']['completeness_rate']['segments']:.1f}%")
         print(f"Complétude sites web: {report['summary']['completeness_rate']['websites']:.1f}%")
         
         if report['recommendations']:
-            print("\n💡 Recommandations:")
+            print("\nRecommandations:")
             for rec in report['recommendations']:
                 print(f"  - {rec['type']}: {len(rec['dates'])} dates à récupérer (priorité: {rec['priority']})")
     
     elif args.command == 'monthly-report':
         report = checker.generate_monthly_report(args.year, args.month)
         
-        print(f"\n📊 RAPPORT MENSUEL - {args.year}/{args.month:02d}")
+        print(f"\nRAPPORT MENSUEL - {args.year}/{args.month:02d}")
         print("="*50)
         print(f"Complétude segments: {report['summary']['completeness_rate']['segments']:.1f}%")
         print(f"Complétude sites web: {report['summary']['completeness_rate']['websites']:.1f}%")
         
         if report['detailed_stats']['segments']:
-            print("\n📈 Top 5 segments par visites:")
+            print("\nTop 5 segments par visites:")
             for i, seg in enumerate(report['detailed_stats']['segments'][:5], 1):
                 print(f"  {i}. {seg['segment_name']}: {seg['avg_visits']:,.0f} visites")
     
