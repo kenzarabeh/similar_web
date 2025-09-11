@@ -30,7 +30,7 @@ TARGET_DOMAINS = ['amazon.fr', 'joueclub.fr']
 
 # === Configuration des extractions ===
 # Granularité par défaut
-DEFAULT_GRANULARITY = 'monthly'  # Options: 'daily', 'weekly', 'monthly'
+DEFAULT_GRANULARITY = 'daily'  # Options: 'daily', 'weekly', 'monthly'
 DEFAULT_COUNTRY = 'fr'
 
 # Métriques pour les segments - divisées en groupes pour l'API
