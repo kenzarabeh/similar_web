@@ -93,7 +93,7 @@ class BigQueryDailyUploader:
             return set()
     
     def _process_segments_file_daily(self, file_path):
-        """Traite un fichier de segments - PRESERVE LA GRANULARITÉ QUOTIDIENNE"""
+        """Traite un fichier de segments - PRESERVE LA GRANULARITÉ QUOTIDIENNE + CONFIDENCE"""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -151,6 +151,7 @@ class BigQueryDailyUploader:
                     'visit_duration': float(data_point.get('visit_duration')) if data_point.get('visit_duration') is not None else None,
                     'page_views': float(data_point.get('page_views')) if data_point.get('page_views') is not None else None,
                     'unique_visitors': float(data_point.get('unique_visitors')) if data_point.get('unique_visitors') is not None else None,
+                    'confidence': str(data_point.get('confidence')) if data_point.get('confidence') is not None else None,  # NOUVELLE COLONNE (STRING)
                     'extraction_date': extraction_date
                 }
                 
@@ -161,7 +162,7 @@ class BigQueryDailyUploader:
         return rows
     
     def _process_websites_file_daily(self, file_path):
-        """Traite un fichier de websites - PRESERVE LA GRANULARITÉ QUOTIDIENNE"""
+        """Traite un fichier de websites - PRESERVE LA GRANULARITÉ QUOTIDIENNE + CONFIDENCE"""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -214,14 +215,15 @@ class BigQueryDailyUploader:
                     'unique_visitors': None,
                     'desktop_share': None,
                     'mobile_share': None,
+                    'confidence': float(visit_point.get('confidence')) if visit_point.get('confidence') is not None else None,  # NOUVELLE COLONNE
                     'extraction_date': extraction_date
                 }
                 
-                # Ajouter les autres métriques si disponibles
-                self._add_metric_to_row(row, metrics, 'bounce_rate', 'bounce_rate', final_date)
-                self._add_metric_to_row(row, metrics, 'pages_per_visit', 'pages_per_visit', final_date)
-                self._add_metric_to_row(row, metrics, 'avg_visit_duration', 'average_visit_duration', final_date)
-                self._add_metric_to_row(row, metrics, 'page_views', 'page_views', final_date)
+                # Ajouter les autres métriques si disponibles avec leur confidence
+                self._add_metric_to_row_with_confidence(row, metrics, 'bounce_rate', 'bounce_rate', final_date)
+                self._add_metric_to_row_with_confidence(row, metrics, 'pages_per_visit', 'pages_per_visit', final_date)
+                self._add_metric_to_row_with_confidence(row, metrics, 'avg_visit_duration', 'average_visit_duration', final_date)
+                self._add_metric_to_row_with_confidence(row, metrics, 'page_views', 'page_views', final_date)
                 
                 # Desktop/Mobile split
                 self._add_split_metrics(row, metrics, final_date)
@@ -229,6 +231,26 @@ class BigQueryDailyUploader:
                 rows.append(row)
         
         return rows
+
+    def _add_metric_to_row_with_confidence(self, row, metrics, metric_name, field_name, target_date):
+        """Ajoute une métrique à la ligne si elle existe pour la date EXACTE + gère confidence"""
+        metric_data = metrics.get(metric_name, {})
+        if metric_data and metric_name in metric_data:
+            for point in metric_data[metric_name]:
+                point_date = point.get('date', '')
+                
+                # Comparaison EXACTE de la date (pas de normalisation)
+                if point_date == target_date or point_date == target_date[:7]:  # YYYY-MM-DD ou YYYY-MM
+                    value = point.get(field_name)
+                    if value is not None:
+                        row[metric_name] = float(value)
+                    
+                    # Si confidence n'est pas encore définie et qu'elle existe dans ce point
+                    if row.get('confidence') is None:
+                        confidence = point.get('confidence')
+                        if confidence is not None:
+                            row['confidence'] = str(confidence)
+                    break
     
     def _add_metric_to_row(self, row, metrics, metric_name, field_name, target_date):
         """Ajoute une métrique à la ligne si elle existe pour la date EXACTE"""

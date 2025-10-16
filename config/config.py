@@ -37,7 +37,8 @@ DEFAULT_COUNTRY = 'fr'
 SEGMENT_METRICS_GROUPS = [
     'visits,share',
     'bounce-rate,pages-per-visit,visit-duration',
-    'page-views,unique-visitors'
+    'page-views'
+    # ,unique-visitors'
 ]
 
 # Endpoints pour les sites web

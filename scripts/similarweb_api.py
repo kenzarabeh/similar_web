@@ -120,17 +120,7 @@ class SimilarWebAPI:
                         granularity: str = DEFAULT_GRANULARITY) -> Optional[Dict]:
         """
         Récupère les données de trafic pour un segment spécifique
-        Fait plusieurs appels pour récupérer toutes les métriques
-        
-        Args:
-            segment_id: ID du segment
-            start_date: Date de début (format YYYY-MM)
-            end_date: Date de fin (format YYYY-MM)
-            country: Code pays
-            granularity: Granularité (monthly, daily, weekly)
-            
-        Returns:
-            Données du segment combinées ou None en cas d'erreur
+        Fait plusieurs appels pour récupérer toutes les métriques + confidence
         """
         from config.config import SEGMENT_METRICS_GROUPS
         
