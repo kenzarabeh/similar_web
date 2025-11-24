@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """
-Script d'extraction quotidienne CORRIGÉ pour architecture 3 tables SimilarWeb
-- segments_daily : données daily sans unique_visitors
-- segments_unique_visitors : données monthly avec seulement unique_visitors
-- websites_daily : données daily avec unique_visitors
+Script d'extraction hebdomadaire (WEEKLY) CORRIGÉ pour architecture 3 tables SimilarWeb
+Utilise les méthodes existantes de similarweb_api.py
 """
 import sys
 import os
@@ -29,31 +27,46 @@ logger = logging.getLogger(__name__)
 
 def get_date_range_for_extraction(start_date: str, end_date: str, granularity: str) -> List[Dict]:
     """
-    Génère les périodes d'extraction selon la granularité - Architecture 3 tables
+    Génère les périodes d'extraction selon la granularité - Format API YYYY-MM
     
     Args:
         start_date: Date de début (YYYY-MM-DD)
         end_date: Date de fin (YYYY-MM-DD) 
-        granularity: 'daily' ou 'monthly'
+        granularity: 'weekly' ou 'monthly'
         
     Returns:
         Liste des périodes à extraire
     """
     periods = []
     
-    if granularity == 'daily':
-        # Extraction jour par jour
+    if granularity == 'weekly':
+        # Pour weekly, l'API attend le format YYYY-MM
+        # On extrait par mois, l'API retournera les semaines automatiquement
         current = datetime.strptime(start_date, '%Y-%m-%d')
         end = datetime.strptime(end_date, '%Y-%m-%d')
         
-        while current <= end:
+        # Extraire tous les mois couverts par la période
+        months_set = set()
+        temp_date = current
+        while temp_date <= end:
+            months_set.add(temp_date.strftime('%Y-%m'))
+            # Passer au mois suivant
+            if temp_date.month == 12:
+                temp_date = temp_date.replace(year=temp_date.year + 1, month=1, day=1)
+            else:
+                temp_date = temp_date.replace(month=temp_date.month + 1, day=1)
+        
+        # Créer une période par mois
+        for month_str in sorted(months_set):
+            year_month = datetime.strptime(month_str, '%Y-%m')
+            
             periods.append({
-                'start_date': current.strftime('%Y-%m-%d'),
-                'end_date': current.strftime('%Y-%m-%d'),
-                'api_format': current.strftime('%Y-%m-%d'),  # Format YYYY-MM-DD pour daily
-                'granularity': 'daily'
+                'start_date': month_str,  # Format YYYY-MM pour l'API
+                'end_date': month_str,    # Format YYYY-MM pour l'API
+                'api_format': month_str,
+                'granularity': 'weekly',
+                'month': month_str
             })
-            current += timedelta(days=1)
             
     else:  # monthly
         # Extraction mois par mois
@@ -61,18 +74,14 @@ def get_date_range_for_extraction(start_date: str, end_date: str, granularity: s
         end = datetime.strptime(end_date, '%Y-%m-%d')
         
         while current <= end:
-            # Premier et dernier jour du mois
-            first_day = current.replace(day=1)
-            if current.month == 12:
-                last_day = current.replace(year=current.year + 1, month=1, day=1) - timedelta(days=1)
-            else:
-                last_day = current.replace(month=current.month + 1, day=1) - timedelta(days=1)
+            month_str = current.strftime('%Y-%m')
             
             periods.append({
-                'start_date': first_day.strftime('%Y-%m-%d'),
-                'end_date': min(last_day, end).strftime('%Y-%m-%d'),
-                'api_format': current.strftime('%Y-%m'),  # Format YYYY-MM pour monthly
-                'granularity': 'monthly'
+                'start_date': month_str,
+                'end_date': month_str,
+                'api_format': month_str,
+                'granularity': 'monthly',
+                'month': month_str
             })
             
             # Passer au mois suivant
@@ -84,60 +93,67 @@ def get_date_range_for_extraction(start_date: str, end_date: str, granularity: s
     return periods
 
 
-def extract_segments_daily_three_tables(api_client: SimilarWebAPI, daily_periods: List[Dict], 
-                                       monthly_periods: List[Dict], limit: int = None) -> Dict:
+def extract_segments_weekly_three_tables(api_client: SimilarWebAPI, weekly_periods: List[Dict], 
+                                        monthly_periods: List[Dict], limit: int = None) -> Dict:
     """
-    Extraction segments selon l'architecture 3 tables
+    Extraction segments selon l'architecture 3 tables avec granularité WEEKLY
+    Utilise les méthodes existantes de similarweb_api.py
     
     Args:
         api_client: Client API SimilarWeb
-        daily_periods: Périodes daily pour segments_daily
-        monthly_periods: Périodes monthly pour segments_unique_visitors
+        weekly_periods: Périodes weekly pour segments_weekly (SANS unique_visitors)
+        monthly_periods: Périodes monthly pour segments_unique_visitors (AVEC unique_visitors)
         limit: Limite de segments à traiter
         
     Returns:
         Dictionnaire avec les 2 types de données segments
     """
-    logger.info(f"=== EXTRACTION SEGMENTS - ARCHITECTURE 3 TABLES ===")
+    logger.info(f"=== EXTRACTION SEGMENTS - ARCHITECTURE 3 TABLES (WEEKLY) ===")
+    logger.info("Note: unique_visitors disponible uniquement en granularité monthly")
     
     results = {
-        'segments_daily': [],
+        'segments_weekly': [],
         'segments_unique_visitors': []
     }
     
-    # 1. Extraction segments_daily (daily, sans unique_visitors)
-    logger.info(f"1. SEGMENTS DAILY ({len(daily_periods)} périodes)")
+    # 1. Extraction segments_weekly (weekly, SANS unique_visitors)
+    logger.info(f"1. SEGMENTS WEEKLY ({len(weekly_periods)} périodes)")
+    logger.info("Métriques: visits, bounce-rate, pages-per-visit, visit-duration, page-views, traffic-share")
     
-    for i, period in enumerate(daily_periods):
-        logger.info(f"Période daily {i+1}/{len(daily_periods)}: {period['start_date']}")
+    for i, period in enumerate(weekly_periods):
+        logger.info(f"Période {i+1}/{len(weekly_periods)}: Mois {period['month']} (granularité weekly)")
         
-        segments_daily_data = api_client.extract_segments_daily_architecture(
-            start_date=period['api_format'],
-            end_date=period['api_format'], 
+        # Utiliser extract_segments_daily_architecture avec granularity='weekly'
+        segments_weekly_data = api_client.extract_segments_daily_architecture(
+            start_date=period['api_format'],  # Format YYYY-MM
+            end_date=period['api_format'],    # Format YYYY-MM
             limit=limit,
             user_only=True,
-            granularity='daily'
+            granularity='weekly'  # Granularité weekly
         )
         
         # Ajouter l'information de période à chaque segment
-        for segment in segments_daily_data:
+        for segment in segments_weekly_data:
             segment['extraction_period'] = period
+            segment['table_type'] = 'segments_weekly'  # Override
         
-        results['segments_daily'].extend(segments_daily_data)
+        results['segments_weekly'].extend(segments_weekly_data)
         
         # Pause entre les périodes
-        if i < len(daily_periods) - 1:
+        if i < len(weekly_periods) - 1:
             time.sleep(2)
     
-    # 2. Extraction segments_unique_visitors (monthly, seulement unique_visitors)
-    logger.info(f"2. SEGMENTS UNIQUE_VISITORS ({len(monthly_periods)} périodes)")
+    # 2. Extraction segments_unique_visitors (monthly, SEULEMENT unique_visitors)
+    logger.info(f"2. SEGMENTS UNIQUE_VISITORS ({len(monthly_periods)} mois)")
+    logger.info("Métrique: unique-visitors uniquement (granularité monthly)")
     
     for i, period in enumerate(monthly_periods):
-        logger.info(f"Période monthly {i+1}/{len(monthly_periods)}: {period['start_date'][:7]}")
+        logger.info(f"Mois {i+1}/{len(monthly_periods)}: {period['month']}")
         
+        # Utiliser extract_segments_unique_visitors_architecture
         segments_uv_data = api_client.extract_segments_unique_visitors_architecture(
-            start_date=period['api_format'],
-            end_date=period['api_format'],
+            start_date=period['api_format'],  # Format YYYY-MM
+            end_date=period['api_format'],    # Format YYYY-MM
             limit=limit,
             user_only=True
         )
@@ -153,10 +169,10 @@ def extract_segments_daily_three_tables(api_client: SimilarWebAPI, daily_periods
             time.sleep(2)
     
     # Statistiques
-    daily_stats = {
-        'total': len(results['segments_daily']),
-        'success': len([s for s in results['segments_daily'] if not s.get('error')]),
-        'errors': len([s for s in results['segments_daily'] if s.get('error')])
+    weekly_stats = {
+        'total': len(results['segments_weekly']),
+        'success': len([s for s in results['segments_weekly'] if not s.get('error')]),
+        'errors': len([s for s in results['segments_weekly'] if s.get('error')])
     }
     
     uv_stats = {
@@ -165,26 +181,27 @@ def extract_segments_daily_three_tables(api_client: SimilarWebAPI, daily_periods
         'errors': len([s for s in results['segments_unique_visitors'] if s.get('error')])
     }
     
-    logger.info(f"Segments daily: {daily_stats['success']}/{daily_stats['total']} extraits")
+    logger.info(f"Segments weekly: {weekly_stats['success']}/{weekly_stats['total']} extraits")
     logger.info(f"Segments unique_visitors: {uv_stats['success']}/{uv_stats['total']} extraits")
     
     return results
 
 
-def extract_websites_daily_three_tables(api_client: SimilarWebAPI, daily_periods: List[Dict],
-                                       domains: List[str] = None) -> List[Dict]:
+def extract_websites_weekly_three_tables(api_client: SimilarWebAPI, weekly_periods: List[Dict],
+                                        domains: List[str] = None) -> List[Dict]:
     """
-    Extraction websites daily avec unique_visitors - Architecture 3 tables (inchangé)
+    Extraction websites weekly AVEC unique_visitors - Architecture 3 tables
+    Utilise extract_websites_daily_architecture avec granularity='weekly'
     
     Args:
         api_client: Client API SimilarWeb
-        daily_periods: Périodes daily
+        weekly_periods: Périodes weekly
         domains: Liste des domaines
         
     Returns:
-        Liste des websites daily
+        Liste des websites weekly
     """
-    logger.info(f"=== EXTRACTION WEBSITES DAILY ({len(daily_periods)} périodes) ===")
+    logger.info(f"=== EXTRACTION WEBSITES WEEKLY ({len(weekly_periods)} périodes) ===")
     
     # Charger les domaines
     if domains is None:
@@ -196,31 +213,29 @@ def extract_websites_daily_three_tables(api_client: SimilarWebAPI, daily_periods
             logger.warning(f"Erreur chargement websites: {e}")
             domains = TARGET_DOMAINS
             logger.warning(f"Utilisation de la liste par défaut: {len(domains)} sites")
-
-    # if domains is None:
-    #     domains = ['amazon.com']  # Remplacez par votre domaine
-    #     logger.info(f"TEST avec 1 seul domaine: {domains[0]}")
     
     all_results = []
     
-    for i, period in enumerate(daily_periods):
-        logger.info(f"Période {i+1}/{len(daily_periods)}: {period['start_date']}")
+    for i, period in enumerate(weekly_periods):
+        logger.info(f"Période {i+1}/{len(weekly_periods)}: Mois {period['month']} (granularité weekly)")
         
+        # Utiliser extract_websites_daily_architecture avec granularity='weekly'
         websites_data = api_client.extract_websites_daily_architecture(
             domains=domains,
-            start_date=period['api_format'],
-            end_date=period['api_format'],
-            granularity='daily'
+            start_date=period['api_format'],  # Format YYYY-MM
+            end_date=period['api_format'],    # Format YYYY-MM
+            granularity='weekly'  # Granularité weekly
         )
         
-        # Ajouter l'information de période à chaque website
+        # Ajouter l'information de période et override table_type
         for website in websites_data:
             website['extraction_period'] = period
+            website['table_type'] = 'websites_weekly'  # Override
         
         all_results.extend(websites_data)
         
         # Pause entre les périodes
-        if i < len(daily_periods) - 1:
+        if i < len(weekly_periods) - 1:
             time.sleep(2)
     
     # Statistiques
@@ -235,33 +250,33 @@ def extract_websites_daily_three_tables(api_client: SimilarWebAPI, daily_periods
     return all_results
 
 
-def extract_for_automation_three_tables(days_back: int = 7) -> Dict:
+def extract_for_automation_three_tables(weeks_back: int = 4) -> Dict:
     """
-    Fonction pour l'automatisation quotidienne - Architecture 3 tables
-    Extrait segments daily + segments monthly + websites daily
+    Fonction pour l'automatisation hebdomadaire - Architecture 3 tables
+    Extrait segments weekly + segments monthly + websites weekly
     
     Args:
-        days_back: Nombre de jours en arrière à extraire
+        weeks_back: Nombre de semaines en arrière à extraire
         
     Returns:
         Résumé de l'extraction
     """
-    logger.info(f"=== EXTRACTION AUTOMATISÉE 3 TABLES (J-{days_back} à aujourd'hui) ===")
+    logger.info(f"=== EXTRACTION AUTOMATISÉE 3 TABLES WEEKLY ({weeks_back} semaines en arrière) ===")
     
     # Calculer les dates
     end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=days_back)
+    start_date = end_date - timedelta(weeks=weeks_back)
     
-    # SimilarWeb a un délai, donc exclure les 2 derniers jours
-    end_date = end_date - timedelta(days=2)
+    # SimilarWeb a un délai, donc exclure les 2-3 derniers jours
+    end_date = end_date - timedelta(days=3)
     
     logger.info(f"Période: {start_date} → {end_date}")
     
-    # Générer les périodes daily et monthly
-    daily_periods = get_date_range_for_extraction(
+    # Générer les périodes weekly et monthly
+    weekly_periods = get_date_range_for_extraction(
         start_date.strftime('%Y-%m-%d'),
         end_date.strftime('%Y-%m-%d'),
-        'daily'
+        'weekly'
     )
     
     # Pour monthly, prendre seulement les mois concernés
@@ -271,30 +286,30 @@ def extract_for_automation_three_tables(days_back: int = 7) -> Dict:
         'monthly'
     )
     
-    if not daily_periods:
-        logger.warning("Aucune période daily à extraire")
+    if not weekly_periods:
+        logger.warning("Aucune période weekly à extraire")
         return {'status': 'no_data', 'periods': 0}
     
-    logger.info(f"{len(daily_periods)} jours daily à extraire")
+    logger.info(f"{len(weekly_periods)} périodes weekly à extraire")
     logger.info(f"{len(monthly_periods)} mois monthly à extraire")
     
     api_client = SimilarWebAPI()
     results = {}
     
     try:
-        # 1. Extraction segments (daily + unique_visitors)
-        segments_results = extract_segments_daily_three_tables(
-            api_client, daily_periods, monthly_periods
+        # 1. Extraction segments (weekly + unique_visitors)
+        segments_results = extract_segments_weekly_three_tables(
+            api_client, weekly_periods, monthly_periods
         )
         
-        # Sauvegarder segments_daily
-        if segments_results['segments_daily']:
+        # Sauvegarder segments_weekly
+        if segments_results['segments_weekly']:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"segments_daily_auto_{timestamp}.json"
-            save_results_to_json(segments_results['segments_daily'], filename)
-            results['segments_daily'] = {
-                'count': len(segments_results['segments_daily']),
-                'success': len([s for s in segments_results['segments_daily'] if not s.get('error')]),
+            filename = f"segments_weekly_auto_{timestamp}.json"
+            save_results_to_json(segments_results['segments_weekly'], filename)
+            results['segments_weekly'] = {
+                'count': len(segments_results['segments_weekly']),
+                'success': len([s for s in segments_results['segments_weekly'] if not s.get('error')]),
                 'file': filename
             }
         
@@ -309,13 +324,13 @@ def extract_for_automation_three_tables(days_back: int = 7) -> Dict:
                 'file': filename
             }
         
-        # 2. Extraction websites daily
-        websites_data = extract_websites_daily_three_tables(api_client, daily_periods)
+        # 2. Extraction websites weekly
+        websites_data = extract_websites_weekly_three_tables(api_client, weekly_periods)
         if websites_data:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"websites_daily_auto_{timestamp}.json"
+            filename = f"websites_weekly_auto_{timestamp}.json"
             save_results_to_json(websites_data, filename)
-            results['websites_daily'] = {
+            results['websites_weekly'] = {
                 'count': len(websites_data),
                 'success': len([w for w in websites_data if any(w.get('metrics', {}).values())]),
                 'file': filename
@@ -327,18 +342,19 @@ def extract_for_automation_three_tables(days_back: int = 7) -> Dict:
             'extraction_date': datetime.now().isoformat(),
             'period_start': start_date.isoformat(),
             'period_end': end_date.isoformat(),
-            'daily_periods_count': len(daily_periods),
+            'weekly_periods_count': len(weekly_periods),
             'monthly_periods_count': len(monthly_periods),
             'architecture': '3_tables',
+            'granularity': 'weekly',
             'results': results
         }
         
-        save_results_to_json(summary, 'daily_extraction_summary_latest.json')
+        save_results_to_json(summary, 'weekly_extraction_summary_latest.json')
         
-        logger.info("=== EXTRACTION AUTOMATISÉE 3 TABLES TERMINÉE ===")
-        logger.info(f"Segments daily: {results.get('segments_daily', {}).get('success', 0)} extraits")
+        logger.info("=== EXTRACTION AUTOMATISÉE 3 TABLES WEEKLY TERMINÉE ===")
+        logger.info(f"Segments weekly: {results.get('segments_weekly', {}).get('success', 0)} extraits")
         logger.info(f"Segments unique_visitors: {results.get('segments_unique_visitors', {}).get('success', 0)} extraits")
-        logger.info(f"Websites daily: {results.get('websites_daily', {}).get('success', 0)} extraits")
+        logger.info(f"Websites weekly: {results.get('websites_weekly', {}).get('success', 0)} extraits")
         
         return summary
         
@@ -348,21 +364,25 @@ def extract_for_automation_three_tables(days_back: int = 7) -> Dict:
             'status': 'error',
             'extraction_date': datetime.now().isoformat(),
             'architecture': '3_tables',
+            'granularity': 'weekly',
             'error': str(e)
         }
-        save_results_to_json(error_summary, 'daily_extraction_error.json')
+        save_results_to_json(error_summary, 'weekly_extraction_error.json')
         return error_summary
 
 
 def main():
-    """Fonction principale corrigée pour architecture 3 tables"""
-    parser = argparse.ArgumentParser(description='Extraction SimilarWeb - Architecture 3 tables')
+    """Fonction principale pour architecture 3 tables avec granularité WEEKLY"""
+    parser = argparse.ArgumentParser(
+        description='Extraction SimilarWeb - Architecture 3 tables (WEEKLY)',
+        epilog='Note: utilise les méthodes existantes avec granularity=weekly'
+    )
     parser.add_argument('--start-date', help='Date de début (YYYY-MM-DD)')
     parser.add_argument('--end-date', help='Date de fin (YYYY-MM-DD)')
     parser.add_argument('--auto', action='store_true', 
-                       help='Mode automatisation (7 derniers jours)')
-    parser.add_argument('--days-back', type=int, default=7,
-                       help='Nombre de jours en arrière pour mode auto')
+                       help='Mode automatisation (4 dernières semaines)')
+    parser.add_argument('--weeks-back', type=int, default=4,
+                       help='Nombre de semaines en arrière pour mode auto')
     parser.add_argument('--test', action='store_true', 
                        help='Mode test (limite à 1 segment)')
     parser.add_argument('--segments-only', action='store_true', 
@@ -374,7 +394,7 @@ def main():
     
     # Mode automatisation pour Cloud Run
     if args.auto:
-        result = extract_for_automation_three_tables(args.days_back)
+        result = extract_for_automation_three_tables(args.weeks_back)
         print(json.dumps(result, indent=2))
         return result
     
@@ -383,15 +403,15 @@ def main():
         logger.error("--start-date et --end-date requis en mode manuel")
         return
     
-    logger.info(f"Extraction SimilarWeb - Architecture 3 tables")
+    logger.info(f"Extraction SimilarWeb - Architecture 3 tables (WEEKLY)")
     logger.info(f"Période: {args.start_date} → {args.end_date}")
     
     try:
-        # Générer les périodes daily et monthly
-        daily_periods = get_date_range_for_extraction(
+        # Générer les périodes weekly et monthly
+        weekly_periods = get_date_range_for_extraction(
             args.start_date, 
             args.end_date, 
-            'daily'
+            'weekly'
         )
         
         monthly_periods = get_date_range_for_extraction(
@@ -400,7 +420,7 @@ def main():
             'monthly'
         )
         
-        logger.info(f"{len(daily_periods)} périodes daily à extraire")
+        logger.info(f"{len(weekly_periods)} périodes weekly à extraire")
         logger.info(f"{len(monthly_periods)} périodes monthly à extraire")
         
         api_client = SimilarWebAPI()
@@ -408,19 +428,19 @@ def main():
         
         # Extraction des segments (2 types)
         if not args.websites_only:
-            segments_results = extract_segments_daily_three_tables(
+            segments_results = extract_segments_weekly_three_tables(
                 api_client=api_client,
-                daily_periods=daily_periods,
+                weekly_periods=weekly_periods,
                 monthly_periods=monthly_periods,
                 limit=1 if args.test else None
             )
             
-            # Sauvegarder segments_daily
-            if segments_results['segments_daily']:
+            # Sauvegarder segments_weekly
+            if segments_results['segments_weekly']:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f"segments_daily_{timestamp}.json"
-                save_results_to_json(segments_results['segments_daily'], filename)
-                results['segments_daily'] = len(segments_results['segments_daily'])
+                filename = f"segments_weekly_{timestamp}.json"
+                save_results_to_json(segments_results['segments_weekly'], filename)
+                results['segments_weekly'] = len(segments_results['segments_weekly'])
             
             # Sauvegarder segments_unique_visitors
             if segments_results['segments_unique_visitors']:
@@ -429,25 +449,26 @@ def main():
                 save_results_to_json(segments_results['segments_unique_visitors'], filename)
                 results['segments_unique_visitors'] = len(segments_results['segments_unique_visitors'])
         
-        # Extraction des websites (daily avec unique_visitors)
+        # Extraction des websites (weekly)
         if not args.segments_only:
-            websites_data = extract_websites_daily_three_tables(
+            websites_data = extract_websites_weekly_three_tables(
                 api_client=api_client,
-                daily_periods=daily_periods
+                weekly_periods=weekly_periods
             )
             
             if websites_data:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f"websites_daily_{timestamp}.json"
+                filename = f"websites_weekly_{timestamp}.json"
                 save_results_to_json(websites_data, filename)
-                results['websites_daily'] = len(websites_data)
+                results['websites_weekly'] = len(websites_data)
         
         # Résumé
         summary = {
             'extraction_timestamp': datetime.now().isoformat(),
             'period': f"{args.start_date} to {args.end_date}",
             'architecture': '3_tables',
-            'daily_periods_processed': len(daily_periods),
+            'granularity': 'weekly',
+            'weekly_periods_processed': len(weekly_periods),
             'monthly_periods_processed': len(monthly_periods),
             'results': results,
             'status': 'success'
@@ -455,7 +476,7 @@ def main():
         
         save_results_to_json(summary, 'extraction_summary_latest.json')
         
-        logger.info("Extraction terminée avec succès - Architecture 3 tables")
+        logger.info("Extraction terminée avec succès - Architecture 3 tables (WEEKLY)")
         print(json.dumps(summary, indent=2))
         
         return summary
@@ -465,6 +486,7 @@ def main():
         error_summary = {
             'extraction_timestamp': datetime.now().isoformat(),
             'architecture': '3_tables',
+            'granularity': 'weekly',
             'status': 'error',
             'error': str(e)
         }

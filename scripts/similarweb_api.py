@@ -1,6 +1,6 @@
 """
 Module principal pour les appels à l'API SimilarWeb
-Basé sur les scripts validés du notebook d'exploration
+CORRIGÉ pour architecture 3 tables avec nouvelles méthodes spécialisées
 """
 import requests
 import time
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class SimilarWebAPI:
-    """Classe pour gérer les interactions avec l'API SimilarWeb"""
+    """Classe pour gérer les interactions avec l'API SimilarWeb - Architecture 3 tables"""
     
     def __init__(self, api_key: str = None):
         """
@@ -35,6 +35,18 @@ class SimilarWebAPI:
         self.api_key = api_key or SIMILARWEB_API_KEY
         self.base_url = SIMILARWEB_BASE_URL
         self.headers = API_HEADERS.copy()
+        
+        # Endpoints websites (inchangés - avec unique_visitors)
+        self.website_endpoints = {
+            'visits': '/total-traffic-and-engagement/visits',
+            'pages_per_visit': '/total-traffic-and-engagement/pages-per-visit',
+            'avg_visit_duration': '/total-traffic-and-engagement/average-visit-duration',
+            'bounce_rate': '/total-traffic-and-engagement/bounce-rate',
+            'page_views': '/total-traffic-and-engagement/page-views',
+            'desktop_mobile_split': '/total-traffic-and-engagement/visits-split',
+            'unique_visitors_desktop': '/unique-visitors/desktop_unique_visitors',
+            'unique_visitors_mobile': '/unique-visitors/mobileweb_unique_visitors'
+        }
         
     def _make_request(self, endpoint: str, params: Dict = None, retry_count: int = 0) -> Optional[Dict]:
         """
@@ -88,6 +100,47 @@ class SimilarWebAPI:
                 
             return None
     
+    def _should_use_mtd(self, date_str: str) -> bool:
+        """
+        Détermine si MTD doit être utilisé selon la règle :
+        - Si mois sélectionné = mois en cours → mtd=true  
+        - Sinon → mtd=false
+        
+        Args:
+            date_str: Date au format YYYY-MM ou YYYY-MM-DD
+            
+        Returns:
+            True si le mois demandé = mois en cours, False sinon
+        """
+        from datetime import datetime
+        
+        try:
+            # Extraire l'année et le mois de la date demandée
+            if len(date_str) >= 7:  # YYYY-MM ou YYYY-MM-DD
+                year_month = date_str[:7]  # YYYY-MM
+                request_year, request_month = map(int, year_month.split('-'))
+                
+                # Date actuelle
+                now = datetime.now()
+                current_year = now.year
+                current_month = now.month
+                
+                # MTD = TRUE si mois demandé = mois en cours
+                is_current_month = (request_year == current_year and request_month == current_month)
+                
+                if is_current_month:
+                    logger.info(f"MTD=TRUE : {year_month} = mois en cours ({current_year}-{current_month:02d})")
+                else:
+                    logger.info(f"MTD=FALSE : {year_month} ≠ mois en cours ({current_year}-{current_month:02d})")
+                
+                return is_current_month
+                
+        except Exception as e:
+            logger.warning(f"Erreur détection MTD pour {date_str}: {e}")
+            return False
+        
+        return False
+    
     def get_custom_segments(self, user_only: bool = True) -> Optional[List[Dict]]:
         """
         Récupère la liste des segments personnalisés
@@ -114,21 +167,37 @@ class SimilarWebAPI:
         else:
             logger.error("Impossible de récupérer les segments")
             return None
-    
-    def get_segment_data(self, segment_id: str, start_date: str, end_date: str, 
-                        country: str = DEFAULT_COUNTRY, 
-                        granularity: str = DEFAULT_GRANULARITY) -> Optional[Dict]:
+
+    def get_segment_data_daily_no_uv(self, segment_id: str, start_date: str, end_date: str, 
+                                   country: str = DEFAULT_COUNTRY, 
+                                   granularity: str = DEFAULT_GRANULARITY,
+                                   mtd: bool = False):
         """
-        Récupère les données de trafic pour un segment spécifique
-        Fait plusieurs appels pour récupérer toutes les métriques + confidence
+        Extraction segments daily SANS unique-visitors - Architecture 3 tables
+        
+        Args:
+            segment_id: ID du segment
+            start_date: Date de début
+            end_date: Date de fin
+            country: Code pays
+            granularity: Granularité (daily/monthly)
+            mtd: Month-to-date pour le mois en cours
+            
+        Returns:
+            Données du segment sans unique_visitors
         """
-        from config.config import SEGMENT_METRICS_GROUPS
+        
+        # Groupes de métriques SANS unique-visitors
+        metrics_groups = [
+            'visits,share',
+            'bounce-rate,pages-per-visit,visit-duration',
+            'page-views'  # SANS unique-visitors
+        ]
         
         combined_data = None
-        all_segments_data = []
+        all_api_results = []
         
-        # Faire un appel pour chaque groupe de métriques
-        for metrics_group in SEGMENT_METRICS_GROUPS:
+        for metrics_group in metrics_groups:
             params = {
                 'start_date': start_date,
                 'end_date': end_date,
@@ -137,73 +206,149 @@ class SimilarWebAPI:
                 'metrics': metrics_group
             }
             
+            # Ajouter MTD si nécessaire
+            if mtd:
+                params['mtd'] = 'true'
+                logger.info(f"Utilisation MTD pour {start_date} (mois en cours)")
+            
             endpoint = f'/segment/{segment_id}/total-traffic-and-engagement/query'
             result = self._make_request(endpoint, params)
             
             if result and 'segments' in result:
-                all_segments_data.append(result['segments'][0])
+                all_api_results.append(result)
         
-        # Combiner toutes les métriques
-        if all_segments_data:
-            # Prendre le premier résultat comme base
-            combined_segment = all_segments_data[0].copy()
+        # Combiner correctement tous les points de données
+        if all_api_results:
+            # Prendre le premier résultat comme base (contient tous les points de dates)
+            base_result = all_api_results[0]
+            combined_segments = []
             
-            # Ajouter les métriques des autres appels
-            for segment_data in all_segments_data[1:]:
-                for key, value in segment_data.items():
-                    if key not in combined_segment:
-                        combined_segment[key] = value
+            # Pour chaque point de données (date)
+            for i, base_segment in enumerate(base_result['segments']):
+                combined_segment = base_segment.copy()
+                
+                # Ajouter les métriques des autres appels API pour le même point (même index)
+                for other_result in all_api_results[1:]:
+                    if i < len(other_result['segments']):
+                        other_segment = other_result['segments'][i]
+                        
+                        # Vérifier que c'est la même date
+                        if other_segment.get('date') == combined_segment.get('date'):
+                            # Ajouter les métriques manquantes
+                            for key, value in other_segment.items():
+                                if key not in combined_segment and key != 'date':
+                                    combined_segment[key] = value
+                
+                combined_segments.append(combined_segment)
             
             combined_data = {
-                'meta': {},
-                'segments': [combined_segment]
+                'meta': base_result.get('meta', {}),
+                'segments': combined_segments
             }
         
         return combined_data
+
+    def get_segment_unique_visitors_only(self, segment_id: str, start_date: str, end_date: str, 
+                                       country: str = DEFAULT_COUNTRY, 
+                                       granularity: str = 'monthly',
+                                       mtd: bool = False):
+        """
+        Extraction segments monthly SEULEMENT pour unique-visitors - Architecture 3 tables
+        
+        Args:
+            segment_id: ID du segment
+            start_date: Date de début
+            end_date: Date de fin
+            country: Code pays
+            granularity: Granularité (monthly par défaut)
+            mtd: Month-to-date pour le mois en cours
+            
+        Returns:
+            Données du segment avec seulement unique_visitors
+        """
+        
+        params = {
+            'start_date': start_date,
+            'end_date': end_date,
+            'country': country,
+            'granularity': granularity,
+            'metrics': 'unique-visitors'  # SEULEMENT unique-visitors
+        }
+        
+        # Ajouter MTD si nécessaire
+        if mtd:
+            params['mtd'] = 'true'
+            logger.info(f"Utilisation MTD pour unique_visitors {start_date} (mois en cours)")
+        
+        endpoint = f'/segment/{segment_id}/total-traffic-and-engagement/query'
+        result = self._make_request(endpoint, params)
+        
+        return result
     
     def get_website_metric(self, domain: str, metric_endpoint: str, 
                           start_date: str, end_date: str,
                           country: str = DEFAULT_COUNTRY,
-                          granularity: str = DEFAULT_GRANULARITY) -> Optional[Dict]:
+                          granularity: str = DEFAULT_GRANULARITY,
+                          mtd: bool = False) -> Optional[Dict]:
         """
         Récupère une métrique spécifique pour un site web
+        AVEC SUPPORT MTD - pour websites_daily avec unique_visitors
         
         Args:
             domain: Domaine à analyser
             metric_endpoint: Endpoint de la métrique
-            start_date: Date de début (format YYYY-MM)
-            end_date: Date de fin (format YYYY-MM)
+            start_date: Date de début (format YYYY-MM-DD pour daily, YYYY-MM pour monthly)
+            end_date: Date de fin (format YYYY-MM-DD pour daily, YYYY-MM pour monthly)
             country: Code pays
-            granularity: Granularité
+            granularity: Granularité ('daily' ou 'monthly')
+            mtd: Month-to-date pour le mois en cours
             
         Returns:
             Données de la métrique ou None en cas d'erreur
         """
+        # Si MTD est activé avec granularité daily, convertir les dates au format YYYY-MM
+        api_start_date = start_date
+        api_end_date = end_date
+        
+        if mtd and granularity == 'daily':
+            # Extraire YYYY-MM de YYYY-MM-DD
+            api_start_date = start_date[:7] if len(start_date) >= 7 else start_date
+            api_end_date = end_date[:7] if len(end_date) >= 7 else end_date
+            logger.info(f"MTD activé: conversion {start_date} → {api_start_date}")
+        
         params = {
-            'start_date': start_date,
-            'end_date': end_date,
+            'start_date': api_start_date,
+            'end_date': api_end_date,
             'country': country,
             'granularity': granularity,
             'main_domain_only': 'false',
             'format': 'json'
         }
         
+        # Ajouter MTD si nécessaire
+        if mtd:
+            params['mtd'] = 'true'
+        
         endpoint = f'/website/{domain}{metric_endpoint}'
+        
         return self._make_request(endpoint, params)
-    
-    def extract_all_segments(self, start_date: str, end_date: str, 
-                           limit: int = None, user_only: bool = True) -> List[Dict]:
+
+    def extract_segments_daily_architecture(self, start_date: str, end_date: str, 
+                                          limit: int = None, user_only: bool = True,
+                                          granularity: str = 'daily') -> List[Dict]:
         """
-        Extrait les données pour tous les segments personnalisés
+        Extrait segments DAILY sans unique_visitors - Architecture 3 tables
+        AVEC SUPPORT MTD AUTOMATIQUE
         
         Args:
-            start_date: Date de début (format YYYY-MM)
-            end_date: Date de fin (format YYYY-MM)
-            limit: Nombre maximum de segments à traiter (None = tous)
-            user_only: Si True, récupère uniquement les segments créés par l'utilisateur
+            start_date: Date de début
+            end_date: Date de fin
+            limit: Nombre maximum de segments à traiter
+            user_only: Segments utilisateur seulement
+            granularity: Granularité (daily)
             
         Returns:
-            Liste des résultats pour chaque segment
+            Liste des segments daily sans unique_visitors
         """
         results = []
         
@@ -216,92 +361,206 @@ class SimilarWebAPI:
         if limit:
             segments = segments[:limit]
         
-        logger.info(f"Extraction de {len(segments)} segments...")
+        # Détection automatique MTD
+        use_mtd = self._should_use_mtd(start_date)
+        if use_mtd:
+            logger.info(f"🗓️ Extraction segments_daily avec MTD pour {start_date} (mois en cours)")
+        
+        logger.info(f"Extraction segments_daily: {len(segments)} segments...")
         
         for i, segment in enumerate(segments):
             segment_id = segment.get('segment_id')
             segment_name = segment.get('segment_name', 'N/A')
             
-            logger.info(f"Extraction {i+1}/{len(segments)}: {segment_name}")
+            logger.info(f"Segment daily {i+1}/{len(segments)}: {segment_name}")
             
-            data = self.get_segment_data(segment_id, start_date, end_date)
+            data = self.get_segment_data_daily_no_uv(
+                segment_id=segment_id,
+                start_date=start_date,
+                end_date=end_date,
+                granularity=granularity,
+                mtd=use_mtd  # MTD automatique
+            )
             
             if data:
-                logger.info(f"Données récupérées pour {segment_name}")
+                logger.info(f"Données daily récupérées pour {segment_name}")
                 results.append({
                     'segment_id': segment_id,
                     'segment_name': segment_name,
                     'data': data,
+                    'extraction_granularity': granularity,
+                    'table_type': 'segments_daily',
+                    'mtd_used': use_mtd,
                     'extraction_date': get_current_date()
                 })
             else:
-                logger.error(f"Échec pour {segment_name}")
+                logger.error(f"Échec daily pour {segment_name}")
                 results.append({
                     'segment_id': segment_id,
                     'segment_name': segment_name,
                     'data': None,
                     'error': True,
+                    'table_type': 'segments_daily',
+                    'mtd_used': use_mtd,
                     'extraction_date': get_current_date()
                 })
         
         return results
-    
-    def extract_website_data(self, domain: str, start_date: str, end_date: str) -> Dict:
+
+    def extract_segments_unique_visitors_architecture(self, start_date: str, end_date: str, 
+                                                    limit: int = None, user_only: bool = True) -> List[Dict]:
         """
-        Extrait toutes les métriques pour un site web
+        Extrait segments MONTHLY seulement unique_visitors - Architecture 3 tables
+        AVEC SUPPORT MTD AUTOMATIQUE
         
         Args:
-            domain: Domaine à analyser
             start_date: Date de début (format YYYY-MM)
             end_date: Date de fin (format YYYY-MM)
+            limit: Nombre maximum de segments à traiter
+            user_only: Segments utilisateur seulement
             
         Returns:
-            Dictionnaire avec toutes les métriques du site
-        """
-        logger.info(f"Extraction pour {domain}")
-        
-        domain_results = {
-            'domain': domain,
-            'period': f"{start_date} to {end_date}",
-            'extraction_date': get_current_date(),
-            'metrics': {}
-        }
-        
-        for metric_name, endpoint in WEBSITE_METRICS_ENDPOINTS.items():
-            logger.info(f"Extraction {metric_name}...")
-            
-            data = self.get_website_metric(domain, endpoint, start_date, end_date)
-            
-            if data:
-                logger.info(f"    {metric_name} récupéré")
-                domain_results['metrics'][metric_name] = data
-            else:
-                logger.error(f"    Échec {metric_name}")
-                domain_results['metrics'][metric_name] = None
-        
-        return domain_results
-    
-    def extract_all_websites(self, domains: List[str], start_date: str, end_date: str) -> List[Dict]:
-        """
-        Extrait les données pour plusieurs sites web
-        
-        Args:
-            domains: Liste des domaines à analyser
-            start_date: Date de début (format YYYY-MM)
-            end_date: Date de fin (format YYYY-MM)
-            
-        Returns:
-            Liste des résultats pour chaque domaine
+            Liste des segments unique_visitors seulement
         """
         results = []
         
-        logger.info(f"Extraction de {len(domains)} sites web...")
+        # Récupérer la liste des segments
+        segments = self.get_custom_segments(user_only=user_only)
+        if not segments:
+            return results
         
-        for domain in domains:
-            result = self.extract_website_data(domain, start_date, end_date)
-            results.append(result)
+        # Limiter si demandé
+        if limit:
+            segments = segments[:limit]
+        
+        # Détection automatique MTD
+        use_mtd = self._should_use_mtd(start_date)
+        if use_mtd:
+            logger.info(f"🗓️ Extraction segments_unique_visitors avec MTD pour {start_date} (mois en cours)")
+        
+        logger.info(f"Extraction segments_unique_visitors: {len(segments)} segments...")
+        
+        for i, segment in enumerate(segments):
+            segment_id = segment.get('segment_id')
+            segment_name = segment.get('segment_name', 'N/A')
+            
+            logger.info(f"Segment unique_visitors {i+1}/{len(segments)}: {segment_name}")
+            
+            data = self.get_segment_unique_visitors_only(
+                segment_id=segment_id,
+                start_date=start_date,
+                end_date=end_date,
+                granularity='monthly',
+                mtd=use_mtd  # MTD automatique
+            )
+            
+            if data:
+                logger.info(f"Données unique_visitors récupérées pour {segment_name}")
+                results.append({
+                    'segment_id': segment_id,
+                    'segment_name': segment_name,
+                    'data': data,
+                    'extraction_granularity': 'monthly',
+                    'table_type': 'segments_unique_visitors',
+                    'mtd_used': use_mtd,
+                    'extraction_date': get_current_date()
+                })
+            else:
+                logger.error(f"Échec unique_visitors pour {segment_name}")
+                results.append({
+                    'segment_id': segment_id,
+                    'segment_name': segment_name,
+                    'data': None,
+                    'error': True,
+                    'table_type': 'segments_unique_visitors',
+                    'mtd_used': use_mtd,
+                    'extraction_date': get_current_date()
+                })
         
         return results
+
+    def extract_websites_daily_architecture(self, domains: List[str], start_date: str, end_date: str,
+                                          granularity: str = 'daily') -> List[Dict]:
+        """
+        Extrait websites DAILY avec unique_visitors - Architecture 3 tables 
+        AVEC SUPPORT MTD AUTOMATIQUE
+        
+        Args:
+            domains: Liste des domaines à analyser
+            start_date: Date de début
+            end_date: Date de fin
+            granularity: Granularité (daily)
+            
+        Returns:
+            Liste des websites daily avec unique_visitors
+        """
+        results = []
+        
+        # Détection automatique MTD
+        use_mtd = self._should_use_mtd(start_date)
+        if use_mtd:
+            logger.info(f"🗓️ Extraction websites_daily avec MTD pour {start_date} (mois en cours)")
+        
+        logger.info(f"Extraction websites_daily: {len(domains)} sites web...")
+        
+        for domain in domains:
+            logger.info(f"Extraction {domain}")
+            
+            domain_results = {
+                'domain': domain,
+                'period': f"{start_date} to {end_date}",
+                'extraction_date': get_current_date(),
+                'extraction_granularity': granularity,
+                'table_type': 'websites_daily',
+                'mtd_used': use_mtd,
+                'metrics': {}
+            }
+            
+            # Extraire toutes les métriques incluant unique_visitors
+            for metric_name, endpoint in self.website_endpoints.items():
+                logger.info(f"  Extraction {metric_name}...")
+                
+                data = self.get_website_metric(
+                    domain=domain,
+                    metric_endpoint=endpoint,
+                    start_date=start_date,
+                    end_date=end_date,
+                    granularity=granularity,
+                    mtd=use_mtd  # MTD automatique
+                )
+                
+                if data:
+                    logger.info(f"    {metric_name} récupéré")
+                    # DEBUG: Log structure unique_visitors
+                    if 'unique_visitors' in metric_name and use_mtd:
+                        if isinstance(data, dict) and 'unique_visitors' in data:
+                            uv_points = data['unique_visitors']
+                            logger.info(f"    {metric_name} (MTD): {len(uv_points) if isinstance(uv_points, list) else 'not list'} points")
+                        
+                    domain_results['metrics'][metric_name] = data
+                else:
+                    logger.error(f"    Échec {metric_name}")
+                    domain_results['metrics'][metric_name] = None
+            
+            results.append(domain_results)
+        
+        return results
+
+    # Méthodes de compatibilité pour les anciens scripts
+    def extract_all_segments(self, start_date: str, end_date: str, 
+                           limit: int = None, user_only: bool = True,
+                           granularity: str = DEFAULT_GRANULARITY) -> List[Dict]:
+        """
+        Méthode de compatibilité - redirige vers segments_daily_architecture
+        """
+        return self.extract_segments_daily_architecture(start_date, end_date, limit, user_only, granularity)
+    
+    def extract_all_websites(self, domains: List[str], start_date: str, end_date: str,
+                           granularity: str = DEFAULT_GRANULARITY) -> List[Dict]:
+        """
+        Méthode de compatibilité - redirige vers websites_daily_architecture
+        """
+        return self.extract_websites_daily_architecture(domains, start_date, end_date, granularity)
 
 
 def save_results_to_json(data: Any, filename: str) -> None:
@@ -312,6 +571,9 @@ def save_results_to_json(data: Any, filename: str) -> None:
         data: Données à sauvegarder
         filename: Nom du fichier (sera créé dans le dossier data/)
     """
+    # Créer le dossier data s'il n'existe pas
+    os.makedirs(DATA_PATH, exist_ok=True)
+    
     filepath = os.path.join(DATA_PATH, filename)
     
     with open(filepath, 'w', encoding='utf-8') as f:
@@ -322,7 +584,7 @@ def save_results_to_json(data: Any, filename: str) -> None:
 
 if __name__ == "__main__":
     # Test du module
-    logger.info("Test du module SimilarWeb API...")
+    logger.info("Test du module SimilarWeb API - Architecture 3 tables...")
     
     # Initialiser le client
     api = SimilarWebAPI()
@@ -331,5 +593,17 @@ if __name__ == "__main__":
     segments = api.get_custom_segments()
     if segments:
         logger.info(f"Test réussi: {len(segments)} segments trouvés")
+        
+        # Test des nouvelles méthodes
+        if len(segments) > 0:
+            segment_id = segments[0]['segment_id']
+            
+            # Test segments daily sans UV
+            daily_data = api.get_segment_data_daily_no_uv(segment_id, '2025-09-01', '2025-09-01', granularity='daily')
+            logger.info(f"Test daily sans UV: {'Réussi' if daily_data else 'Échoué'}")
+            
+            # Test unique visitors seulement
+            uv_data = api.get_segment_unique_visitors_only(segment_id, '2025-09', '2025-09')
+            logger.info(f"Test unique visitors seulement: {'Réussi' if uv_data else 'Échoué'}")
     else:
-        logger.error("Test échoué: Impossible de récupérer les segments") 
+        logger.error("Test échoué: Impossible de récupérer les segments")

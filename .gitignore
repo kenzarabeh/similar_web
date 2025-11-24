@@ -5,6 +5,7 @@ credentials.json
 
 # Données
 data/
+data_old/
 logs/
 *.json
 *.csv
