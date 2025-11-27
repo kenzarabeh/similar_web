@@ -29,6 +29,6 @@ black==23.12.0
 flake8==6.1.0
 isort==5.13.0 
 
-# Web Framework (CRITIQUE pour Cloud Run)
+# Flask pour Cloud Run (INDISPENSABLE)
 Flask==3.0.0
-Werkzeug==3.0.1
+gunicorn==21.2.0
